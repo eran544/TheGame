@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  # SQL Server Database
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: thegame-sqlserver
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=YourStrong@Passw0rd
+      - MSSQL_PID=Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    networks:
+      - thegame-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: thegame-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - thegame-network
+
+  # .NET Server
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: thegame-server
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+    depends_on:
+      - sqlserver
+      - redis
+    networks:
+      - thegame-network
+    volumes:
+      - ./server:/app
+    command: ["dotnet", "watch", "run", "--urls", "http://0.0.0.0:8080"]
+
+  # Python AI Service
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: thegame-ai-service
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app
+    depends_on:
+      - redis
+    networks:
+      - thegame-network
+    volumes:
+      - ./ai-service:/app
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  # React Client (Development)
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.dev
+    container_name: thegame-client
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_BASE_URL=http://localhost:5000
+      - REACT_APP_SIGNALR_HUB_URL=http://localhost:5000/gamehub
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    networks:
+      - thegame-network
+    command: ["npm", "start"]
+
+volumes:
+  sqlserver_data:
+  redis_data:
+
+networks:
+  thegame-network:
+    driver: bridge

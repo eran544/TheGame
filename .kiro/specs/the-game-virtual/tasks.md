@@ -2,7 +2,12 @@
 
 ## Phase 1: Single Player Implementation
 
-- [ ] 1. Set up project structure and development environment
+- [x] 1. Set up project structure and development environment
+
+
+
+
+
   - Create React client project with TypeScript and Redux Toolkit
   - Set up ASP.NET Core Web API project with SignalR
   - Create Python FastAPI microservice project
@@ -10,12 +15,18 @@
   - Set up SQL Server and Redis containers
   - _Requirements: 5.1, 5.2_
 
-- [ ] 1.1 Create configuration management system
-  - Create appsettings.template.json for .NET server with empty connection strings and API keys
-  - Create .env.template file for React client with empty API endpoints
-  - Create config.template.py for Python AI service with empty OpenAI API key
-  - Add actual config files to .gitignore
-  - Document configuration setup in README files
+- [x] 1.1 Create configuration management system
+
+
+  - Create appsettings.template.json for .NET server with placeholder values
+  - Create appsettings.json for .NET server with actual connection strings and API keys
+  - Create .env.template file for React client with placeholder API endpoints
+  - Create .env file for React client with actual API endpoints
+  - Create config.template.py for Python AI service with placeholder OpenAI API key
+  - Create config.py for Python AI service with actual OpenAI API key and settings
+  - Create .gitignore file and add appsettings.json, .env, and config.py to it
+  - Document configuration setup in README files for each project.
+  - Add readme.md for the game itself, describing the rules, crediting the creators of the game and stating it was created for educational purposes
   - _Requirements: 5.1, 5.2_
 
 - [ ] 2. Implement core data models and database schema
