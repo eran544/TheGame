@@ -1,14 +1,20 @@
+using Microsoft.EntityFrameworkCore;
+using StackExchange.Redis;
+using TheGameServer.Data;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
-// Add SignalR
 builder.Services.AddSignalR();
 
-// Add CORS
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+    ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!));
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowClient", policy =>
@@ -22,7 +28,6 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -30,12 +35,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("AllowClient");
-
 app.UseAuthorization();
-
 app.MapControllers();
-
-// Map SignalR hub (placeholder)
-// app.MapHub<GameHub>("/gamehub");
 
 app.Run();

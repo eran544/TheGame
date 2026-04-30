@@ -29,7 +29,7 @@
   - Add readme.md for the game itself, describing the rules, crediting the creators of the game and stating it was created for educational purposes
   - _Requirements: 5.1, 5.2_
 
-- [ ] 2. Implement core data models and database schema
+- [x] 2. Implement core data models and database schema
   - Create Entity Framework models for Users, GameSessions, GameStates, and Statistics
   - Implement database migrations for all tables
   - Set up Redis connection and caching models
