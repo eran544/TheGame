@@ -111,7 +111,7 @@
   - Add error boundaries and user-facing error messages
   - _Requirements: 5.1, 1.1, 1.2, 1.3, 1.4, 1.5_
 
-- [ ] 9. Build interactive game instructions page
+- [x] 9. Build interactive game instructions page
   - Add "How to Play" button on the main menu that navigates to the instructions page
   - Create a multi-section instructions layout with next/previous navigation
   - Implement animated visual examples for ascending and descending pile rules

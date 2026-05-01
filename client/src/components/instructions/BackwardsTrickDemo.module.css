@@ -1,0 +1,144 @@
+.demo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 400px;
+}
+
+.board {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.pileArea {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pileLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-pile-asc);
+}
+
+.pile {
+  width: 72px;
+  height: 90px;
+  border: 2px solid var(--color-pile-asc);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-surface) 80%, var(--color-pile-asc) 20%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pileValue {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  font-family: var(--font-family-mono);
+  color: var(--color-text);
+  animation: pop 0.3s ease-out;
+}
+
+@keyframes pop {
+  0% { transform: scale(1.4); color: var(--color-pile-asc); }
+  100% { transform: scale(1); color: var(--color-text); }
+}
+
+.arrow {
+  font-size: var(--font-size-xl);
+  color: var(--color-text-muted);
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.card {
+  position: relative;
+  width: 64px;
+  height: 76px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-card);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  font-family: var(--font-family-mono);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.card:hover:not(:disabled) {
+  transform: translateX(-6px);
+  border-color: var(--color-accent);
+  box-shadow: 0 4px 12px var(--color-accent-muted);
+}
+
+.card.trick {
+  border-color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-card) 80%, var(--color-warning) 20%);
+}
+
+.card.trick:hover:not(:disabled) {
+  border-color: var(--color-warning);
+  box-shadow: 0 4px 12px rgba(243, 156, 18, 0.3);
+}
+
+.card.invalid {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.trickBadge {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  font-size: 0.6rem;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-warning);
+  line-height: 1;
+}
+
+.allPlayed {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-style: italic;
+}
+
+.result {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  text-align: center;
+  max-width: 320px;
+  margin: 0;
+}
+
+.reset {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  padding: 0.3rem 0.8rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.reset:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+}

@@ -85,8 +85,9 @@
 }
 
 .ghost:hover:not(:disabled) {
-  color: var(--color-text);
-  background-color: var(--color-surface-2);
+  color: var(--color-text-secondary);
+  border-color: var(--color-border);
+  background-color: transparent;
 }
 
 /* ---------- Full width ---------- */

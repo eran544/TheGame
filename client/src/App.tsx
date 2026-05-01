@@ -7,6 +7,7 @@ import RegisterPage from './pages/RegisterPage';
 import MainMenuPage from './pages/MainMenuPage';
 import GamePage from './pages/GamePage';
 import DashboardPage from './pages/DashboardPage';
+import InstructionsPage from './pages/InstructionsPage';
 
 const App: React.FC = () => {
   return (
@@ -20,14 +21,7 @@ const App: React.FC = () => {
         <Route path="/" element={<MainMenuPage />} />
         <Route path="/game/new" element={<GamePage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
-        <Route
-          path="/instructions"
-          element={
-            <div style={{ padding: '2rem', color: 'var(--color-text)' }}>
-              Instructions coming soon (Task 9)
-            </div>
-          }
-        />
+        <Route path="/instructions" element={<InstructionsPage />} />
       </Route>
 
       {/* Admin routes */}
