@@ -104,7 +104,7 @@
   - Test dashboard data retrieval
   - _Requirements: 1.6_
 
-- [ ] 8. Integrate real-time communication for Phase 1
+- [x] 8. Integrate real-time communication for Phase 1
   - Implement SignalR hub for real-time game state updates
   - Add loading states and optimistic UI updates in the React client
   - Implement client-side and server-side input validation

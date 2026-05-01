@@ -8,6 +8,7 @@ interface GameBoardProps {
   descendingPiles: [number, number];
   validPileSlots: Set<PileSlot> | null;
   onPileClick: (slot: PileSlot) => void;
+  isLoading?: boolean;
 }
 
 const GameBoard: React.FC<GameBoardProps> = ({
@@ -15,6 +16,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
   descendingPiles,
   validPileSlots,
   onPileClick,
+  isLoading = false,
 }) => {
   const pileValues = [
     ascendingPiles[0],
@@ -24,14 +26,14 @@ const GameBoard: React.FC<GameBoardProps> = ({
   ];
 
   return (
-    <div className={styles.board}>
+    <div className={[styles.board, isLoading ? styles.boardLoading : ''].join(' ')}>
       {([0, 1, 2, 3] as PileSlot[]).map((slot) => (
         <Pile
           key={slot}
           slot={slot}
           topValue={pileValues[slot]}
-          isActive={validPileSlots?.has(slot) ?? false}
-          onClick={() => onPileClick(slot)}
+          isActive={!isLoading && (validPileSlots?.has(slot) ?? false)}
+          onClick={() => !isLoading && onPileClick(slot)}
         />
       ))}
     </div>

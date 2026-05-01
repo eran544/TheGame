@@ -28,6 +28,11 @@
   font-style: italic;
 }
 
+.handLoading {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 .staged {
   display: flex;
   flex-direction: column;

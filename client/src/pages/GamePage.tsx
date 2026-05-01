@@ -8,6 +8,7 @@ import GameEndModal from '../components/game/GameEndModal';
 import Button from '../components/ui/Button';
 import useAppDispatch from '../hooks/useAppDispatch';
 import useAppSelector from '../hooks/useAppSelector';
+import { useGameHub } from '../hooks/useGameHub';
 import {
   startGameAsync,
   playTurnAsync,
@@ -50,6 +51,8 @@ const GamePage: React.FC = () => {
     status,
     error,
   } = useAppSelector((s) => s.game);
+
+  useGameHub(sessionId, token);
 
   useEffect(() => {
     if (token) dispatch(startGameAsync({ isExpertMode: false, token }));
@@ -112,11 +115,13 @@ const GamePage: React.FC = () => {
         />
 
         <div className={styles.instruction}>
-          {selectedCard === null
-            ? 'Select a card from your hand'
-            : validPileSlots?.size === 0
-              ? `Card ${selectedCard} has no valid moves — pick a different card`
-              : `Card ${selectedCard} selected — click a highlighted pile to play it`}
+          {status === 'loading'
+            ? 'Playing…'
+            : selectedCard === null
+              ? 'Select a card from your hand'
+              : validPileSlots?.size === 0
+                ? `Card ${selectedCard} has no valid moves — pick a different card`
+                : `Card ${selectedCard} selected — click a highlighted pile to play it`}
         </div>
 
         <GameBoard
@@ -124,12 +129,14 @@ const GamePage: React.FC = () => {
           descendingPiles={descendingPiles}
           validPileSlots={validPileSlots}
           onPileClick={handlePileClick}
+          isLoading={status === 'loading'}
         />
 
         <PlayerHand
           hand={playerHand}
           selectedCard={selectedCard}
           onSelectCard={(v) => dispatch(selectCard(v))}
+          isLoading={status === 'loading'}
         />
 
         <div className={styles.actions}>

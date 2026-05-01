@@ -10,6 +10,8 @@ import type {
   StagedPlay,
 } from '../../types/game';
 
+export type { GameStateDto };
+
 export interface GameSliceState {
   sessionId: string | null;
   gamePhase: GamePhase;
@@ -136,6 +138,13 @@ const gameSlice = createSlice({
       state.selectedCard = null;
     },
 
+    applyGameStateFromHub(state, action: PayloadAction<GameStateDto>) {
+      // Only apply if the session matches and the game is still in progress
+      if (state.sessionId === action.payload.sessionId) {
+        applyGameState(state, action.payload);
+      }
+    },
+
     addChatMessage(state, action: PayloadAction<ChatMessage>) {
       state.gameMessages.push(action.payload);
     },
@@ -201,6 +210,7 @@ export const {
   stagePlay,
   unstagePaly,
   clearStagedPlays,
+  applyGameStateFromHub,
   addChatMessage,
   clearGame,
   clearGameError,

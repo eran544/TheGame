@@ -6,10 +6,11 @@ interface PlayerHandProps {
   hand: number[];
   selectedCard: number | null;
   onSelectCard: (value: number) => void;
+  isLoading?: boolean;
 }
 
-const PlayerHand: React.FC<PlayerHandProps> = ({ hand, selectedCard, onSelectCard }) => (
-  <div className={styles.handArea}>
+const PlayerHand: React.FC<PlayerHandProps> = ({ hand, selectedCard, onSelectCard, isLoading = false }) => (
+  <div className={[styles.handArea, isLoading ? styles.handLoading : ''].join(' ')}>
     <div className={styles.handLabel}>Your Hand</div>
     <div className={styles.hand}>
       {hand.map((value) => (
@@ -17,7 +18,7 @@ const PlayerHand: React.FC<PlayerHandProps> = ({ hand, selectedCard, onSelectCar
           key={value}
           value={value}
           isSelected={selectedCard === value}
-          onClick={() => onSelectCard(value)}
+          onClick={() => !isLoading && onSelectCard(value)}
           size="md"
         />
       ))}

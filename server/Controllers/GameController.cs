@@ -1,7 +1,9 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using TheGameServer.DTOs.Game;
+using TheGameServer.Hubs;
 using TheGameServer.Services.Game;
 
 namespace TheGameServer.Controllers;
@@ -12,8 +14,13 @@ namespace TheGameServer.Controllers;
 public class GameController : ControllerBase
 {
     private readonly IGameService _gameService;
+    private readonly IHubContext<GameHub> _hub;
 
-    public GameController(IGameService gameService) => _gameService = gameService;
+    public GameController(IGameService gameService, IHubContext<GameHub> hub)
+    {
+        _gameService = gameService;
+        _hub = hub;
+    }
 
     [HttpPost("start")]
     public async Task<IActionResult> StartGame([FromBody] StartGameRequest request)
@@ -36,7 +43,10 @@ public class GameController : ControllerBase
         var result = await _gameService.PlayTurnAsync(sessionId, GetUserId(), plays);
         if (!result.Success) return BadRequest(new { error = result.Error });
         var outcome = result.Value!;
-        return Ok(new TurnOutcomeDto(MapState(outcome.State), outcome.GameEnded, outcome.EndReason));
+        var dto = new TurnOutcomeDto(MapState(outcome.State), outcome.GameEnded, outcome.EndReason);
+        await _hub.Clients.Group(GameHub.GroupName(sessionId.ToString()))
+            .SendAsync("GameStateUpdated", dto.State);
+        return Ok(dto);
     }
 
     [HttpPost("{sessionId:guid}/abandon")]

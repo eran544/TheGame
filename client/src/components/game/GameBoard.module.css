@@ -3,4 +3,11 @@
   gap: 1rem;
   justify-content: center;
   flex-wrap: wrap;
+  transition: opacity 0.15s ease;
+}
+
+.boardLoading {
+  opacity: 0.5;
+  pointer-events: none;
+  cursor: wait;
 }

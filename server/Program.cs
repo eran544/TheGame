@@ -5,6 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using StackExchange.Redis;
 using TheGameServer.Data;
+using TheGameServer.Hubs;
 using TheGameServer.Services;
 using TheGameServer.Services.Game;
 
@@ -70,6 +71,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
         options.Events = new JwtBearerEvents
         {
+            OnMessageReceived = ctx =>
+            {
+                // SignalR sends the token as a query string parameter for WebSocket/SSE
+                var token = ctx.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(token) &&
+                    ctx.HttpContext.Request.Path.StartsWithSegments("/gamehub"))
+                {
+                    ctx.Token = token;
+                }
+                return Task.CompletedTask;
+            },
             OnTokenValidated = async ctx =>
             {
                 var sessionId = ctx.Principal?.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti)?.Value;
@@ -116,5 +128,6 @@ app.UseCors("AllowClient");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<GameHub>("/gamehub");
 
 app.Run();
