@@ -50,7 +50,7 @@
   - Test session timeout handling
   - _Requirements: 1.0_
 
-- [ ] 4. Create basic game engine and card logic
+- [x] 4. Create basic game engine and card logic
   - Implement card deck initialization and shuffling
   - Create game state management for single-player games
   - Build card playing validation (ascending/descending rules)
@@ -58,7 +58,7 @@
   - Create game end detection and scoring
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
 
-- [ ]* 4.1 Write unit tests for game logic
+- [x]* 4.1 Write unit tests for game logic
   - Test card validation rules
   - Test backwards trick implementation
   - Test game end conditions

@@ -5,6 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
 using TheGameServer.Data;
 using TheGameServer.Services;
+using TheGameServer.Services.Game;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,6 +24,9 @@ builder.Services.AddScoped<IPasswordValidator, PasswordValidator>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<ISessionService, SessionService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddSingleton<IGameEngine, GameEngine>();
+builder.Services.AddSingleton<IDeckShuffler, DeckShuffler>();
+builder.Services.AddScoped<IGameService, GameService>();
 builder.Services.AddHostedService<AdminInitializer>();
 
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()
