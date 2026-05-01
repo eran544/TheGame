@@ -90,7 +90,7 @@
   - Client: fix API error message parsing — server error responses use an `error` field, not `message` or `title`
   - _Requirements: 1.2, 1.3, 1.4_
 
-- [ ] 7. Create player statistics and dashboard system
+- [x] 7. Create player statistics and dashboard system
   - Implement statistics tracking service in .NET
   - Build database operations for game result storage
   - Create player dashboard UI with statistics display
@@ -98,7 +98,7 @@
   - Add statistics calculation and aggregation
   - _Requirements: 1.6_
 
-- [ ]* 7.1 Write unit tests for statistics service
+- [x]* 7.1 Write unit tests for statistics service
   - Test game result recording
   - Test statistics calculations
   - Test dashboard data retrieval

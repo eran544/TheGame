@@ -47,6 +47,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddSingleton<IGameEngine, GameEngine>();
 builder.Services.AddSingleton<IDeckShuffler, DeckShuffler>();
 builder.Services.AddScoped<IGameService, GameService>();
+builder.Services.AddScoped<IStatisticsService, StatisticsService>();
 builder.Services.AddHostedService<AdminInitializer>();
 
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()

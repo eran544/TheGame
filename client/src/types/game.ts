@@ -88,3 +88,14 @@ export interface TurnOutcomeDto {
   gameEnded: boolean;
   endReason: string | null;
 }
+
+export interface GameHistoryItem {
+  sessionId: string;
+  playedAt: string;
+  cardsRemaining: number;
+  isPerfectGame: boolean;
+  rating: 'Perfect' | 'Excellent' | 'TryAgain';
+  durationMinutes: number | null;
+  endReason: string;
+  isExpertMode: boolean;
+}
