@@ -65,7 +65,7 @@
   - Test scoring calculations
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
 
-- [ ] 5. Build React client foundation and Redux store
+- [x] 5. Build React client foundation and Redux store
   - Set up Redux store with game state slices
   - Create authentication slice and middleware
   - Implement routing with protected routes
@@ -103,11 +103,19 @@
   - Implement client-side and server-side validation
   - _Requirements: 5.1, 1.1, 1.2, 1.3, 1.4, 1.5_
 
+- [ ] 9. Build interactive game instructions page
+  - Add "How to Play" button on the main menu that navigates to the instructions page
+  - Create a multi-section instructions layout with next/previous navigation
+  - Implement animated visual examples for ascending and descending pile rules
+  - Build an interactive backwards trick demo (clickable card on a pile showing the ±10 move)
+  - Add a "Back to Menu" button on the instructions page
+  - _Requirements: 1.7_
+
 ---
 
 ## Phase 2: Multiplayer Online Implementation
 
-- [ ] 9. Build multiplayer game session management
+- [ ] 10. Build multiplayer game session management
   - Create game lobby system for creating/joining games
   - Implement multiplayer game state synchronization
   - Build turn-based gameplay mechanics
@@ -115,7 +123,7 @@
   - Implement game session cleanup and management
   - _Requirements: 2.1, 2.3_
 
-- [ ] 10. Implement real-time multiplayer communication
+- [ ] 11. Implement real-time multiplayer communication
   - Extend SignalR hub for multiplayer broadcasts
   - Create real-time game state updates
   - Implement player action broadcasting
@@ -123,13 +131,13 @@
   - Build reconnection handling for temporary disconnects
   - _Requirements: 2.2_
 
-- [ ]* 10.1 Write integration tests for multiplayer functionality
+- [ ]* 11.1 Write integration tests for multiplayer functionality
   - Test game session creation and joining
   - Test real-time state synchronization
   - Test disconnection handling
   - _Requirements: 2.1, 2.2, 2.3_
 
-- [ ] 11. Create Python AI microservice foundation
+- [ ] 12. Create Python AI microservice foundation
   - Set up FastAPI project with OpenAI integration
   - Create API endpoints for message validation and AI moves
   - Implement basic message validation against communication rules
@@ -137,7 +145,7 @@
   - Add error handling and fallback mechanisms
   - _Requirements: 5.2, 2.4_
 
-- [ ] 12. Build chat system with rule enforcement
+- [ ] 13. Build chat system with rule enforcement
   - Create chat UI components in React client
   - Implement chat message API endpoints
   - Integrate AI message validation service
@@ -145,13 +153,13 @@
   - Create message blocking and warning system
   - _Requirements: 2.4_
 
-- [ ]* 12.1 Write unit tests for chat validation
+- [ ]* 13.1 Write unit tests for chat validation
   - Test forbidden message detection
   - Test context-aware validation
   - Test message broadcasting
   - _Requirements: 2.4_
 
-- [ ] 13. Implement admin dashboard and management features
+- [ ] 14. Implement admin dashboard and management features
   - Create admin-only UI components and routes
   - Build admin statistics dashboard
   - Implement user management functionality (create/delete/reset passwords)
@@ -163,7 +171,7 @@
 
 ## Phase 3: AI Players and Disconnection Handling
 
-- [ ] 14. Build AI player integration system
+- [ ] 15. Build AI player integration system
   - Extend AI microservice for full AI player behavior
   - Implement AI player hand management
   - Create AI decision-making for card plays
@@ -171,7 +179,7 @@
   - Integrate AI players into multiplayer games
   - _Requirements: 3.1, 3.3_
 
-- [ ] 15. Implement disconnection handling and AI replacement
+- [ ] 16. Implement disconnection handling and AI replacement
   - Create disconnection detection with timeout handling
   - Build AI replacement system for disconnected players
   - Implement hand and context transfer to AI
@@ -179,7 +187,7 @@
   - Update statistics handling for AI-assisted games
   - _Requirements: 3.2_
 
-- [ ]* 15.1 Write integration tests for AI replacement
+- [ ]* 16.1 Write integration tests for AI replacement
   - Test disconnection detection
   - Test AI replacement process
   - Test reconnection handling
@@ -190,7 +198,7 @@
 
 ## Phase 4: Expert Rules and Spectator System
 
-- [ ] 16. Create expert rules and rule customization system
+- [ ] 17. Create expert rules and rule customization system
   - Implement expert variant with increased card requirements
   - Build rule customization UI and validation
   - Create custom rule storage and application
@@ -198,7 +206,7 @@
   - Add rule display and communication to players
   - _Requirements: 4.1, 4.2_
 
-- [ ] 17. Build spectator system
+- [ ] 18. Build spectator system
   - Create spectator join functionality
   - Implement spectator-specific game view
   - Build spectator list display for players
@@ -206,7 +214,7 @@
   - Create spectator UI with limited game information
   - _Requirements: 4.3_
 
-- [ ] 18. Implement admin spectator privileges
+- [ ] 19. Implement admin spectator privileges
   - Create admin spectator mode with enhanced viewing
   - Implement invisible admin spectating
   - Add admin ability to view any player's hand
@@ -214,7 +222,7 @@
   - Maintain communication restrictions for admin spectators
   - _Requirements: 4.4_
 
-- [ ]* 18.1 Write end-to-end tests for spectator functionality
+- [ ]* 19.1 Write end-to-end tests for spectator functionality
   - Test spectator joining and viewing
   - Test admin spectator privileges
   - Test spectator restrictions and limitations
@@ -224,7 +232,7 @@
 
 ## Cross-Phase: Infrastructure and Deployment
 
-- [ ] 19. Implement comprehensive error handling and resilience
+- [ ] 20. Implement comprehensive error handling and resilience
   - Add circuit breaker patterns for external service calls
   - Implement retry logic with exponential backoff
   - Create graceful degradation for AI service failures
@@ -232,7 +240,7 @@
   - Build health check endpoints for all services
   - _Requirements: 5.1, 5.2_
 
-- [ ] 20. Performance optimization and caching
+- [ ] 21. Performance optimization and caching
   - Implement Redis caching for frequently accessed data
   - Add database query optimization and indexing
   - Create efficient SignalR message batching
@@ -240,14 +248,14 @@
   - Add performance monitoring and metrics collection
   - _Requirements: 5.1, 5.3_
 
-- [ ]* 20.1 Write performance tests
+- [ ]* 21.1 Write performance tests
   - Test concurrent game sessions
   - Test AI service response times
   - Test database performance under load
   - Test real-time communication scalability
   - _Requirements: 5.1, 5.2, 5.3_
 
-- [ ] 21. Security implementation and hardening
+- [ ] 22. Security implementation and hardening
   - Implement comprehensive input validation and sanitization
   - Add rate limiting for API endpoints
   - Create secure session management
@@ -255,7 +263,7 @@
   - Add security headers and HTTPS enforcement
   - _Requirements: 5.1, 1.0, 2.5_
 
-- [ ] 22. Final integration and deployment preparation
+- [ ] 23. Final integration and deployment preparation
   - Create Docker containers for all services
   - Set up production configuration management
   - Implement database migration scripts
@@ -263,7 +271,7 @@
   - Build CI/CD pipeline configuration
   - _Requirements: 5.1, 5.2, 5.3_
 
-- [ ]* 22.1 Write comprehensive integration tests
+- [ ]* 23.1 Write comprehensive integration tests
   - Test full game flows across all phases
   - Test cross-service communication
   - Test deployment and configuration

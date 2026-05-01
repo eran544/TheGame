@@ -101,6 +101,19 @@ The system architecture consists of three main components:
 5. WHEN a player accesses statistics THEN the system SHALL maintain complete game history for the player
 6. WHEN displaying game information THEN the system SHALL show how many cards remain in the deck during active games
 
+#### Requirement 1.7: Interactive Game Instructions
+
+**User Story:** As a new player, I want to access interactive game instructions from the main menu so that I can learn how to play before starting a game.
+
+##### Acceptance Criteria
+
+1. WHEN a player is on the main menu THEN the system SHALL display a button linking to the game instructions
+2. WHEN a player opens the instructions THEN the system SHALL present the rules in an interactive, step-by-step format
+3. WHEN a player views the instructions THEN the system SHALL include animated or visual examples of ascending and descending pile rules
+4. WHEN a player views the instructions THEN the system SHALL demonstrate the backwards trick with an interactive example
+5. WHEN a player views the instructions THEN the system SHALL allow navigating between rule sections (e.g. next/previous)
+6. WHEN a player finishes reading the instructions THEN the system SHALL provide a button to return to the main menu
+
 ### Phase 2: Multiplayer Online Implementation
 
 #### Requirement 2.1: Multiplayer Game Sessions

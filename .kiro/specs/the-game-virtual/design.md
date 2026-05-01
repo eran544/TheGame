@@ -126,6 +126,7 @@ interface ValidMove {
 - **GameLobby**: Manages game creation, joining, and configuration
 - **PlayerDashboard**: Shows statistics and game history
 - **AdminPanel**: Administrative functions and system monitoring
+- **InstructionsPage**: Interactive step-by-step game rules with animated pile examples, backwards trick demo, and section navigation; accessible from the main menu
 
 ### .NET Server Architecture
 

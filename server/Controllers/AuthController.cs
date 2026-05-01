@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using TheGameServer.Data;
 using TheGameServer.DTOs.Auth;
 using TheGameServer.Services;
@@ -43,7 +42,7 @@ public class AuthController : ControllerBase
     [HttpPost("logout")]
     public async Task<IActionResult> Logout()
     {
-        var sessionId = User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti)?.Value;
+        var sessionId = User.FindFirst("jti")?.Value;
         if (!string.IsNullOrEmpty(sessionId))
             await _auth.LogoutAsync(sessionId);
 

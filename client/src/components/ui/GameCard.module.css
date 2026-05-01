@@ -1,0 +1,111 @@
+.card {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-card);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  user-select: none;
+  font-family: var(--font-family-display);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+  transition:
+    transform var(--transition-base),
+    border-color var(--transition-base),
+    box-shadow var(--transition-base),
+    background-color var(--transition-base);
+  position: relative;
+  overflow: hidden;
+}
+
+.card:hover {
+  border-color: var(--color-text-secondary);
+  transform: translateY(-2px);
+}
+
+/* ---------- Sizes ---------- */
+.sm {
+  width: 44px;
+  height: 60px;
+  font-size: var(--font-size-base);
+  border-radius: var(--radius-sm);
+}
+
+.md {
+  width: 60px;
+  height: 84px;
+  font-size: var(--font-size-xl);
+}
+
+.lg {
+  width: 80px;
+  height: 112px;
+  font-size: var(--font-size-2xl);
+}
+
+/* ---------- States ---------- */
+.selected {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent-muted);
+  box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.3), var(--shadow-md);
+  transform: translateY(-4px);
+}
+
+.playable {
+  border-color: var(--color-pile-asc);
+}
+
+.playable:hover {
+  border-color: var(--color-pile-asc);
+  box-shadow: 0 0 10px rgba(46, 204, 113, 0.3);
+}
+
+.notPlayable {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.notPlayable:hover {
+  transform: none;
+  border-color: var(--color-border);
+}
+
+/* ---------- Backwards trick indicator ---------- */
+.backwardsIndicator {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  background-color: var(--color-warning);
+  border-radius: 50%;
+}
+
+/* ---------- Value display ---------- */
+.value {
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* Corner pips */
+.cornerTL,
+.cornerBR {
+  position: absolute;
+  font-size: 0.6em;
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+  color: var(--color-text-secondary);
+}
+
+.cornerTL {
+  top: 4px;
+  left: 6px;
+}
+
+.cornerBR {
+  bottom: 4px;
+  right: 6px;
+  transform: rotate(180deg);
+}
