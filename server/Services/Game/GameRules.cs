@@ -25,8 +25,9 @@ public static class GameRules
         };
     }
 
-    public static int GetMinCardsPerTurn(bool drawPileEmpty, bool isExpertMode)
+    public static int GetMinCardsPerTurn(bool drawPileEmpty, bool isExpertMode, int playerCount = 2)
     {
+        if (playerCount == 1) return 1;
         if (drawPileEmpty) return 1;
         return isExpertMode ? 3 : 2;
     }

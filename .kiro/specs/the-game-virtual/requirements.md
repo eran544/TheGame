@@ -63,17 +63,20 @@ The system architecture consists of three main components:
 3. WHEN the backwards trick is used THEN the system SHALL visually indicate this special move
 4. WHEN the backwards trick is available THEN the system SHALL highlight valid backwards trick moves in the UI
 
-#### Requirement 1.4: Turn Management
+#### Requirement 1.4: Card Play Flow
 
-**User Story:** As a player, I want clear turn management so that I understand when I can play cards and what the requirements are.
+**User Story:** As a player, I want clear card play mechanics so that I understand how to play cards and progress through the game.
 
 ##### Acceptance Criteria
 
-1. WHEN it's the player's turn and the draw pile exists THEN the system SHALL require playing at least 2 cards
-2. WHEN it's the player's turn and the draw pile is empty THEN the system SHALL require playing at least 1 card
-3. WHEN the player has played the minimum required cards THEN the system SHALL allow ending the turn
-4. WHEN the player cannot play the minimum required cards THEN the system SHALL end the game
-5. WHEN the player plays cards THEN the system SHALL allow playing additional cards beyond the minimum
+1. WHEN a player selects a card in single-player mode THEN the system SHALL highlight only the piles where that card can legally be played
+2. WHEN a player selects a card and a valid pile in single-player mode THEN the system SHALL immediately apply the play without requiring a separate "submit turn" action
+3. WHEN the player plays a card THEN the system SHALL immediately draw a replacement card from the draw pile if cards are available
+4. WHEN the player has no valid move on any pile THEN the system SHALL end the game
+5. WHEN it is a player's turn in multiplayer mode and the draw pile is not empty THEN the system SHALL require playing at least 2 cards before ending the turn
+6. WHEN it is a player's turn in multiplayer mode and the draw pile is empty THEN the system SHALL require playing at least 1 card before ending the turn
+7. WHEN the player cannot play the minimum required cards in multiplayer THEN the system SHALL end the game for all players
+8. WHEN the player attempts an invalid move THEN the system SHALL prevent the play and display the specific reason
 
 #### Requirement 1.5: Game End and Scoring
 

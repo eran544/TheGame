@@ -10,6 +10,7 @@ public interface IGameService
     Task<GameResultEnvelope<GameStateView>> StartSinglePlayerGameAsync(Guid userId, bool isExpertMode = false);
     Task<GameResultEnvelope<TurnOutcome>> PlayTurnAsync(Guid sessionId, Guid userId, IList<CardPlay> plays);
     Task<GameResultEnvelope<GameStateView>> GetGameStateAsync(Guid sessionId, Guid userId);
+    Task<GameResultEnvelope<bool>> AbandonGameAsync(Guid sessionId, Guid userId);
 }
 
 public record GameResultEnvelope<T>(bool Success, T? Value, string? Error)
@@ -114,7 +115,7 @@ public class GameService : IGameService
         if (session.GamePhase != "playing")
             return GameResultEnvelope<TurnOutcome>.Fail("Game is not in progress");
 
-        var minCards = GameRules.GetMinCardsPerTurn(drawPileEmpty: drawPile.Count == 0, session.IsExpertMode);
+        var minCards = GameRules.GetMinCardsPerTurn(drawPileEmpty: drawPile.Count == 0, session.IsExpertMode, session.MaxPlayers);
 
         var piles = new PileTops(state.AscendingPile1, state.AscendingPile2, state.DescendingPile1, state.DescendingPile2);
         var validation = _engine.ValidateTurn(plays, hand, piles, minCards);
@@ -146,7 +147,7 @@ public class GameService : IGameService
         player.Hand.UpdatedAt = DateTime.UtcNow;
 
         var perfectGame = newHand.Count == 0 && drawPile.Count == 0;
-        var nextMinCards = GameRules.GetMinCardsPerTurn(drawPileEmpty: drawPile.Count == 0, session.IsExpertMode);
+        var nextMinCards = GameRules.GetMinCardsPerTurn(drawPileEmpty: drawPile.Count == 0, session.IsExpertMode, session.MaxPlayers);
         var canContinue = !perfectGame && _engine.CanPlayMinimumCards(newHand, newPiles, nextMinCards);
 
         GameScore? finalScore = null;
@@ -211,6 +212,40 @@ public class GameService : IGameService
         return GameResultEnvelope<GameStateView>.Ok(view);
     }
 
+    public async Task<GameResultEnvelope<bool>> AbandonGameAsync(Guid sessionId, Guid userId)
+    {
+        var session = await _db.GameSessions
+            .Include(s => s.State)
+            .Include(s => s.Players).ThenInclude(p => p.Hand)
+            .SingleOrDefaultAsync(s => s.Id == sessionId);
+
+        if (session is null) return GameResultEnvelope<bool>.Fail("Game session not found");
+        if (session.Players.All(p => p.UserId != userId)) return GameResultEnvelope<bool>.Fail("Player is not part of this game");
+        if (session.GamePhase == "ended") return GameResultEnvelope<bool>.Fail("Game already ended");
+
+        var player = session.Players.First(p => p.UserId == userId);
+        var handList = player.Hand is not null
+            ? JsonSerializer.Deserialize<List<int>>(player.Hand.Cards) ?? new List<int>()
+            : new List<int>();
+        var drawPile = session.State is not null
+            ? JsonSerializer.Deserialize<List<int>>(session.State.DrawPileCards) ?? new List<int>()
+            : new List<int>();
+
+        session.GamePhase = "ended";
+        session.EndedAt = DateTime.UtcNow;
+
+        _db.GameResults.Add(new GameResult
+        {
+            GameSessionId = sessionId,
+            TotalCardsRemaining = handList.Count + drawPile.Count,
+            IsPerfectGame = false,
+            EndReason = "abandoned"
+        });
+
+        await _db.SaveChangesAsync();
+        return GameResultEnvelope<bool>.Ok(true);
+    }
+
     private async Task<GameContext> LoadGameContextAsync(Guid sessionId, Guid userId)
     {
         var session = await _db.GameSessions
@@ -268,7 +303,7 @@ public class GameService : IGameService
 
     private static GameStateView BuildView(GameSession session, GameState state, IList<int> hand, IList<int> drawPile, GameScore? finalScore)
     {
-        var minCards = GameRules.GetMinCardsPerTurn(drawPileEmpty: drawPile.Count == 0, session.IsExpertMode);
+        var minCards = GameRules.GetMinCardsPerTurn(drawPileEmpty: drawPile.Count == 0, session.IsExpertMode, session.MaxPlayers);
         var piles = new PileTops(state.AscendingPile1, state.AscendingPile2, state.DescendingPile1, state.DescendingPile2);
 
         return new GameStateView(

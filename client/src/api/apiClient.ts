@@ -15,6 +15,8 @@ async function handleResponse<T>(response: Response): Promise<T> {
     const body = await response.json();
     if (body?.message) {
       message = body.message;
+    } else if (body?.error) {
+      message = body.error;
     } else if (body?.title) {
       message = body.title;
     } else if (typeof body === 'string') {

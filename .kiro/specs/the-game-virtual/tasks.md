@@ -54,7 +54,7 @@
   - Implement card deck initialization and shuffling
   - Create game state management for single-player games
   - Build card playing validation (ascending/descending rules)
-  - Implement backwards trick logic (±10 rule)
+  - Implement backwards trick logic (1±10 rule)
   - Create game end detection and scoring
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
 
@@ -73,13 +73,22 @@
   - Create responsive design system
   - _Requirements: 5.1, 1.0_
 
-- [ ] 6. Implement single-player game UI components
-  - Create GameBoard component with four piles display
-  - Build PlayerHand component with card selection
-  - Implement card drag-and-drop or click-to-play mechanics
-  - Create game status display (cards remaining, score)
-  - Build game end modal with results and statistics
+- [x] 6. Implement single-player game UI components
+  - Create GameController with endpoints: start game, play turn, get game state, abandon game
+  - Add game Redux slice actions: startGame, playTurn, fetchGameState, abandonGame with async thunks
+  - Create GameBoard component with four piles display (ascending/descending labels and top card values)
+  - Build PlayerHand component with card selection (click to select/deselect)
+  - Implement click-to-play mechanics: select card then select pile to submit the turn
+  - Create game status display (draw pile count, turn minimum cards indicator)
+  - Build game end modal with score, result label, and return to menu button
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
+
+- [x] 6.1 Fix single-player card play behaviour
+  - Change single-player mode to immediate play: selecting a card then a pile sends the play instantly, no staging or "Play Turn" button
+  - Server: set minCardsPerTurn to 1 for single-player games (no turn minimum — player plays continuously)
+  - Client: compute valid piles for the selected card and highlight only those; grey out invalid piles
+  - Client: fix API error message parsing — server error responses use an `error` field, not `message` or `title`
+  - _Requirements: 1.2, 1.3, 1.4_
 
 - [ ] 7. Create player statistics and dashboard system
   - Implement statistics tracking service in .NET
@@ -95,12 +104,11 @@
   - Test dashboard data retrieval
   - _Requirements: 1.6_
 
-- [ ] 8. Integrate client-server communication for Phase 1
-  - Create API controllers for game operations
-  - Implement SignalR hub for real-time updates
-  - Connect React client to server APIs
-  - Add error handling and loading states
-  - Implement client-side and server-side validation
+- [ ] 8. Integrate real-time communication for Phase 1
+  - Implement SignalR hub for real-time game state updates
+  - Add loading states and optimistic UI updates in the React client
+  - Implement client-side and server-side input validation
+  - Add error boundaries and user-facing error messages
   - _Requirements: 5.1, 1.1, 1.2, 1.3, 1.4, 1.5_
 
 - [ ] 9. Build interactive game instructions page
