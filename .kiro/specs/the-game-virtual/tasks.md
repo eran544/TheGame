@@ -73,7 +73,7 @@
   - Create responsive design system
   - _Requirements: 5.1, 1.0_
 
-- [ ] 6. Implement single-player game UI components
+- [x] 6. Implement single-player game UI components
   - Create GameController with endpoints: start game, play turn, get game state, abandon game
   - Add game Redux slice actions: startGame, playTurn, fetchGameState, abandonGame with async thunks
   - Create GameBoard component with four piles display (ascending/descending labels and top card values)
@@ -83,7 +83,7 @@
   - Build game end modal with score, result label, and return to menu button
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
 
-- [ ] 6.1 Implement undo last move for single-player
+- [x] 6.1 Implement undo last move for single-player
   - Add undo endpoint to GameController (POST /game/{sessionId}/undo)
   - Implement UndoLastMoveAsync in GameService: restore affected pile top, return card to player's hand, push replacement card back onto the draw pile
   - Extend GameState persistence to store previous pile tops, last played card, and replacement card drawn (cleared after each undo or new card play)
@@ -92,7 +92,7 @@
   - Disable undo after it is used until the next card is played
   - _Requirements: 1.8_
 
-- [ ] 7. Create player statistics and dashboard system
+- [x] 7. Create player statistics and dashboard system
   - Implement statistics tracking service in .NET
   - Build database operations for game result storage
   - Create player dashboard UI with statistics display
@@ -100,20 +100,20 @@
   - Add statistics calculation and aggregation
   - _Requirements: 1.6_
 
-- [ ]* 7.1 Write unit tests for statistics service
+- [x]* 7.1 Write unit tests for statistics service
   - Test game result recording
   - Test statistics calculations
   - Test dashboard data retrieval
   - _Requirements: 1.6_
 
-- [ ] 8. Integrate real-time communication for Phase 1
+- [x] 8. Integrate real-time communication for Phase 1
   - Implement SignalR hub for real-time game state updates
   - Add loading states and optimistic UI updates in the React client
   - Implement client-side and server-side input validation
   - Add error boundaries and user-facing error messages
   - _Requirements: 5.1, 1.1, 1.2, 1.3, 1.4, 1.5_
 
-- [ ] 9. Build interactive game instructions page
+- [x] 9. Build interactive game instructions page
   - Add "How to Play" button on the main menu that navigates to the instructions page
   - Create a multi-section instructions layout with next/previous navigation
   - Implement animated visual examples for ascending and descending pile rules
@@ -121,7 +121,7 @@
   - Add a "Back to Menu" button on the instructions page
   - _Requirements: 1.7_
 
-- [ ] 9.1 Add multiplayer communication rules section to instructions
+- [x] 9.1 Add multiplayer communication rules section to instructions
   - Add a "Communication Rules" section to the instructions page
   - Explain what players ARE allowed to say: general encouragement, vague strategic hints like "I'm in trouble", "things are looking good", or implying interest in a pile like "I need that pile" / "don't touch the first pile"
   - Explain what players are NOT allowed to say: specific card numbers, exact pile values, or any phrasing that directly reveals a card's value
