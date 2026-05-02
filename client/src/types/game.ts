@@ -2,24 +2,35 @@ export type GamePhase = 'lobby' | 'playing' | 'ended';
 
 export type PileSlot = 0 | 1 | 2 | 3; // 0=Asc1, 1=Asc2, 2=Desc1, 3=Desc2
 
-export interface Player {
-  id: string;
+export interface PlayerInGame {
+  userId: string;
   username: string;
-  isAI: boolean;
   handCount: number;
-  isActive: boolean;
+  isAI: boolean;
+  isCurrentTurn: boolean;
   isDisconnected: boolean;
+}
+
+export interface LobbyPlayer {
+  userId: string;
+  username: string;
+  playerIndex: number;
+  isAI: boolean;
+}
+
+export interface LobbyStateDto {
+  sessionId: string;
+  gamePhase: GamePhase;
+  players: LobbyPlayer[];
+  maxPlayers: number;
+  isExpertMode: boolean;
+  canStart: boolean;
+  createdBy: string;
 }
 
 export interface Spectator {
   id: string;
   username: string;
-}
-
-export interface ValidMove {
-  cardValue: number;
-  pileIndex: number;
-  isBackwardsTrick: boolean;
 }
 
 export interface ChatMessage {
@@ -29,28 +40,6 @@ export interface ChatMessage {
   message: string;
   isValidated: boolean;
   sentAt: string;
-}
-
-export interface GameSession {
-  id: string;
-  createdBy: string;
-  gamePhase: GamePhase;
-  maxPlayers: number;
-  isExpertMode: boolean;
-  createdAt: string;
-  startedAt: string | null;
-  endedAt: string | null;
-  players: Player[];
-}
-
-export interface CardPlay {
-  cardValue: number;
-  pileIndex: number;
-}
-
-export interface CreateGameRequest {
-  maxPlayers: number;
-  isExpertMode: boolean;
 }
 
 export interface StagedPlay {
@@ -82,6 +71,8 @@ export interface GameStateDto {
   minCardsThisTurn: number;
   finalScore: FinalScore | null;
   canUndo: boolean;
+  currentPlayerId?: string;
+  players?: PlayerInGame[];
 }
 
 export interface TurnOutcomeDto {

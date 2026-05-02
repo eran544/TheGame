@@ -22,6 +22,8 @@ public class GameController : ControllerBase
         _hub = hub;
     }
 
+    // ── Single-player ───────────────────────────────────────────────────────
+
     [HttpPost("start")]
     public async Task<IActionResult> StartGame([FromBody] StartGameRequest request)
     {
@@ -44,8 +46,10 @@ public class GameController : ControllerBase
         if (!result.Success) return BadRequest(new { error = result.Error });
         var outcome = result.Value!;
         var dto = new TurnOutcomeDto(MapState(outcome.State), outcome.GameEnded, outcome.EndReason);
-        await _hub.Clients.Group(GameHub.GroupName(sessionId.ToString()))
-            .SendAsync("GameStateUpdated", dto.State);
+        var group = _hub.Clients.Group(GameHub.GroupName(sessionId.ToString()));
+        await group.SendAsync("GameStateUpdated", dto.State);
+        if (outcome.GameEnded)
+            await group.SendAsync("GameEnded", dto.State);
         return Ok(dto);
     }
 
@@ -53,7 +57,10 @@ public class GameController : ControllerBase
     public async Task<IActionResult> AbandonGame(Guid sessionId)
     {
         var result = await _gameService.AbandonGameAsync(sessionId, GetUserId());
-        return result.Success ? Ok() : BadRequest(new { error = result.Error });
+        if (!result.Success) return BadRequest(new { error = result.Error });
+        await _hub.Clients.Group(GameHub.GroupName(sessionId.ToString()))
+            .SendAsync("GameEnded", new { reason = "abandoned" });
+        return Ok();
     }
 
     [HttpPost("{sessionId:guid}/undo")]
@@ -66,6 +73,56 @@ public class GameController : ControllerBase
             .SendAsync("GameStateUpdated", dto);
         return Ok(dto);
     }
+
+    // ── Multiplayer lobby ───────────────────────────────────────────────────
+
+    [HttpPost("multiplayer/create")]
+    public async Task<IActionResult> CreateMultiplayerGame([FromBody] CreateMultiplayerGameRequest request)
+    {
+        var result = await _gameService.CreateMultiplayerGameAsync(GetUserId(), request.MaxPlayers, request.IsExpertMode);
+        return result.Success ? Ok(MapLobby(result.Value!)) : BadRequest(new { error = result.Error });
+    }
+
+    [HttpPost("{sessionId:guid}/join")]
+    public async Task<IActionResult> JoinGame(Guid sessionId)
+    {
+        var result = await _gameService.JoinGameAsync(sessionId, GetUserId());
+        if (!result.Success) return BadRequest(new { error = result.Error });
+        var dto = MapLobby(result.Value!);
+        await _hub.Clients.Group(GameHub.GroupName(sessionId.ToString()))
+            .SendAsync("LobbyUpdated", dto);
+        return Ok(dto);
+    }
+
+    [HttpPost("{sessionId:guid}/leave")]
+    public async Task<IActionResult> LeaveGame(Guid sessionId)
+    {
+        var result = await _gameService.LeaveGameAsync(sessionId, GetUserId());
+        if (!result.Success) return BadRequest(new { error = result.Error });
+        await _hub.Clients.Group(GameHub.GroupName(sessionId.ToString()))
+            .SendAsync("PlayerLeft", GetUserId());
+        return Ok();
+    }
+
+    [HttpGet("{sessionId:guid}/lobby")]
+    public async Task<IActionResult> GetLobbyState(Guid sessionId)
+    {
+        var result = await _gameService.GetLobbyStateAsync(sessionId, GetUserId());
+        return result.Success ? Ok(MapLobby(result.Value!)) : BadRequest(new { error = result.Error });
+    }
+
+    [HttpPost("{sessionId:guid}/multiplayer/start")]
+    public async Task<IActionResult> StartMultiplayerGame(Guid sessionId)
+    {
+        var result = await _gameService.StartMultiplayerGameAsync(sessionId, GetUserId());
+        if (!result.Success) return BadRequest(new { error = result.Error });
+        var dto = MapState(result.Value!);
+        await _hub.Clients.Group(GameHub.GroupName(sessionId.ToString()))
+            .SendAsync("GameStarted", dto);
+        return Ok(dto);
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
 
     private Guid GetUserId() =>
         Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -83,5 +140,16 @@ public class GameController : ControllerBase
             v.FinalScore.CardsRemaining,
             v.FinalScore.IsPerfectGame,
             v.FinalScore.Rating.ToString()),
-        v.CanUndo);
+        v.CanUndo,
+        v.CurrentPlayerId,
+        v.Players?.Select(p => new PlayerInGameDto(p.UserId, p.Username, p.HandCount, p.IsAI, p.IsCurrentTurn, p.IsDisconnected)).ToList());
+
+    private static LobbyStateDto MapLobby(LobbyView v) => new(
+        v.SessionId,
+        v.GamePhase,
+        v.Players.Select(p => new LobbyPlayerDto(p.UserId, p.Username, p.PlayerIndex, p.IsAI)).ToList(),
+        v.MaxPlayers,
+        v.IsExpertMode,
+        v.CanStart,
+        v.CreatedBy);
 }

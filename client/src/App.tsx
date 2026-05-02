@@ -6,6 +6,9 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import MainMenuPage from './pages/MainMenuPage';
 import GamePage from './pages/GamePage';
+import MultiplayerPage from './pages/MultiplayerPage';
+import LobbyPage from './pages/LobbyPage';
+import MultiplayerGamePage from './pages/MultiplayerGamePage';
 import DashboardPage from './pages/DashboardPage';
 import InstructionsPage from './pages/InstructionsPage';
 
@@ -20,6 +23,9 @@ const App: React.FC = () => {
       <Route element={<ProtectedRoute />}>
         <Route path="/" element={<MainMenuPage />} />
         <Route path="/game/new" element={<GamePage />} />
+        <Route path="/multiplayer" element={<MultiplayerPage />} />
+        <Route path="/lobby/:sessionId" element={<LobbyPage />} />
+        <Route path="/game/:sessionId" element={<MultiplayerGamePage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/instructions" element={<InstructionsPage />} />
       </Route>

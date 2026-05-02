@@ -7,11 +7,19 @@ namespace TheGameServer.Services.Game;
 
 public interface IGameService
 {
+    // Single-player
     Task<GameResultEnvelope<GameStateView>> StartSinglePlayerGameAsync(Guid userId, bool isExpertMode = false);
     Task<GameResultEnvelope<TurnOutcome>> PlayTurnAsync(Guid sessionId, Guid userId, IList<CardPlay> plays);
     Task<GameResultEnvelope<GameStateView>> GetGameStateAsync(Guid sessionId, Guid userId);
     Task<GameResultEnvelope<bool>> AbandonGameAsync(Guid sessionId, Guid userId);
     Task<GameResultEnvelope<GameStateView>> UndoLastMoveAsync(Guid sessionId, Guid userId);
+
+    // Multiplayer lobby
+    Task<GameResultEnvelope<LobbyView>> CreateMultiplayerGameAsync(Guid userId, int maxPlayers, bool isExpertMode = false);
+    Task<GameResultEnvelope<LobbyView>> JoinGameAsync(Guid sessionId, Guid userId);
+    Task<GameResultEnvelope<GameStateView>> StartMultiplayerGameAsync(Guid sessionId, Guid userId);
+    Task<GameResultEnvelope<bool>> LeaveGameAsync(Guid sessionId, Guid userId);
+    Task<GameResultEnvelope<LobbyView>> GetLobbyStateAsync(Guid sessionId, Guid userId);
 }
 
 public record GameResultEnvelope<T>(bool Success, T? Value, string? Error)
@@ -30,9 +38,15 @@ public record GameStateView(
     IList<int> Hand,
     int MinCardsThisTurn,
     GameScore? FinalScore,
-    bool CanUndo);
+    bool CanUndo,
+    Guid? CurrentPlayerId = null,
+    IList<PlayerInGame>? Players = null);
 
 public record TurnOutcome(GameStateView State, bool GameEnded, string? EndReason);
+
+public record PlayerInGame(Guid UserId, string Username, int HandCount, bool IsAI, bool IsCurrentTurn, bool IsDisconnected);
+public record LobbyPlayer(Guid UserId, string Username, int PlayerIndex, bool IsAI);
+public record LobbyView(Guid SessionId, string GamePhase, IList<LobbyPlayer> Players, int MaxPlayers, bool IsExpertMode, bool CanStart, Guid CreatedBy);
 
 // Stored as JSON in GameState.UndoSnapshotJson — captures everything needed to reverse one card play.
 file record UndoSnapshot(
@@ -53,6 +67,8 @@ public class GameService : IGameService
         _engine = engine;
         _shuffler = shuffler;
     }
+
+    // ── Single-player ───────────────────────────────────────────────────────
 
     public async Task<GameResultEnvelope<GameStateView>> StartSinglePlayerGameAsync(Guid userId, bool isExpertMode = false)
     {
@@ -84,7 +100,7 @@ public class GameService : IGameService
         var state = new GameState
         {
             GameSessionId = session.Id,
-            CurrentPlayerId = player.Id,
+            CurrentPlayerId = userId,
             AscendingPile1 = GameRules.AscendingStartValue,
             AscendingPile2 = GameRules.AscendingStartValue,
             DescendingPile1 = GameRules.DescendingStartValue,
@@ -124,6 +140,11 @@ public class GameService : IGameService
         if (session.GamePhase != "playing")
             return GameResultEnvelope<TurnOutcome>.Fail("Game is not in progress");
 
+        var isSinglePlayer = session.MaxPlayers == 1;
+
+        if (!isSinglePlayer && state.CurrentPlayerId != userId)
+            return GameResultEnvelope<TurnOutcome>.Fail("It is not your turn");
+
         var minCards = GameRules.GetMinCardsPerTurn(drawPileEmpty: drawPile.Count == 0, session.IsExpertMode, session.MaxPlayers);
 
         var piles = new PileTops(state.AscendingPile1, state.AscendingPile2, state.DescendingPile1, state.DescendingPile2);
@@ -134,12 +155,8 @@ public class GameService : IGameService
         var newHand = validation.ResultingHand.ToList();
         var newPiles = validation.ResultingPiles;
 
-        // Single card plays in single-player mode are undoable: snapshot before mutating.
         int? drawnCard = null;
-        var refillCount = drawPile.Count == 0
-            ? 0
-            : Math.Min(plays.Count, drawPile.Count);
-
+        var refillCount = drawPile.Count == 0 ? 0 : Math.Min(plays.Count, drawPile.Count);
         if (refillCount > 0)
         {
             drawnCard = drawPile[0];
@@ -150,7 +167,6 @@ public class GameService : IGameService
             }
         }
 
-        var isSinglePlayer = session.MaxPlayers == 1;
         if (isSinglePlayer && plays.Count == 1)
         {
             var snapshot = new UndoSnapshot(
@@ -177,52 +193,111 @@ public class GameService : IGameService
         player.Hand!.Cards = JsonSerializer.Serialize(newHand);
         player.Hand.UpdatedAt = DateTime.UtcNow;
 
-        var perfectGame = newHand.Count == 0 && drawPile.Count == 0;
-        var nextMinCards = GameRules.GetMinCardsPerTurn(drawPileEmpty: drawPile.Count == 0, session.IsExpertMode, session.MaxPlayers);
-        var canContinue = !perfectGame && _engine.CanPlayMinimumCards(newHand, newPiles, nextMinCards);
+        var perfectGame = newHand.Count == 0 && drawPile.Count == 0
+            && session.Players.Where(p => !p.IsSpectator && p.UserId != userId)
+                .All(p => (JsonSerializer.Deserialize<List<int>>(p.Hand?.Cards ?? "[]") ?? new()).Count == 0);
 
         GameScore? finalScore = null;
-        var gameEnded = perfectGame || !canContinue;
+        var gameEnded = false;
         string? endReason = null;
+
+        if (isSinglePlayer)
+        {
+            var nextMin = GameRules.GetMinCardsPerTurn(drawPileEmpty: drawPile.Count == 0, session.IsExpertMode, session.MaxPlayers);
+            var canContinue = !perfectGame && _engine.CanPlayMinimumCards(newHand, newPiles, nextMin);
+            gameEnded = perfectGame || !canContinue;
+        }
+        else
+        {
+            if (perfectGame)
+            {
+                gameEnded = true;
+            }
+            else
+            {
+                // Advance turn to next active player and check if they can play
+                var activePlayers = session.Players
+                    .Where(p => !p.IsSpectator && p.DisconnectedAt == null)
+                    .OrderBy(p => p.PlayerIndex)
+                    .ToList();
+                var currentIdx = activePlayers.FindIndex(p => p.UserId == userId);
+                var nextPlayer = activePlayers[(currentIdx + 1) % activePlayers.Count];
+                state.CurrentPlayerId = nextPlayer.UserId;
+
+                var nextHand = nextPlayer.Hand is not null
+                    ? JsonSerializer.Deserialize<List<int>>(nextPlayer.Hand.Cards) ?? new()
+                    : new List<int>();
+                var nextMin = GameRules.GetMinCardsPerTurn(drawPileEmpty: drawPile.Count == 0, session.IsExpertMode, session.MaxPlayers);
+                if (!_engine.CanPlayMinimumCards(nextHand, newPiles, nextMin))
+                    gameEnded = true;
+            }
+        }
 
         if (gameEnded)
         {
-            var cardsRemaining = newHand.Count + drawPile.Count;
-            finalScore = _engine.CalculateScore(cardsRemaining);
             endReason = perfectGame ? "completed" : "completed";
-
             state.UndoSnapshotJson = null;
             session.GamePhase = "ended";
             session.EndedAt = DateTime.UtcNow;
 
-            var durationMinutes = session.StartedAt is null
-                ? (int?)null
+            var durationMinutes = session.StartedAt is null ? (int?)null
                 : (int)Math.Round((session.EndedAt!.Value - session.StartedAt.Value).TotalMinutes);
+
+            var totalCardsRemaining = isSinglePlayer
+                ? newHand.Count + drawPile.Count
+                : session.Players.Where(p => !p.IsSpectator)
+                    .Sum(p =>
+                    {
+                        var cards = p.UserId == userId ? newHand
+                            : JsonSerializer.Deserialize<List<int>>(p.Hand?.Cards ?? "[]") ?? new();
+                        return cards.Count;
+                    }) + drawPile.Count;
+
+            finalScore = _engine.CalculateScore(totalCardsRemaining);
 
             var result = new GameResult
             {
                 GameSessionId = session.Id,
-                TotalCardsRemaining = cardsRemaining,
+                TotalCardsRemaining = totalCardsRemaining,
                 IsPerfectGame = finalScore.IsPerfectGame,
                 GameDurationMinutes = durationMinutes,
                 EndReason = endReason
             };
             _db.GameResults.Add(result);
 
-            _db.PlayerGameStats.Add(new PlayerGameStat
+            if (isSinglePlayer)
             {
-                GameResultId = result.Id,
-                UserId = userId,
-                CardsInHand = newHand.Count,
-                PlayTimeMinutes = durationMinutes
-            });
-
-            await UpdatePlayerStatisticsAsync(userId, finalScore, durationMinutes);
+                _db.PlayerGameStats.Add(new PlayerGameStat
+                {
+                    GameResultId = result.Id,
+                    UserId = userId,
+                    CardsInHand = newHand.Count,
+                    PlayTimeMinutes = durationMinutes
+                });
+                await UpdatePlayerStatisticsAsync(userId, finalScore, durationMinutes);
+            }
+            else
+            {
+                foreach (var mp in session.Players.Where(p => !p.IsAI && !p.IsSpectator))
+                {
+                    var mpHandCount = mp.UserId == userId ? newHand.Count
+                        : (JsonSerializer.Deserialize<List<int>>(mp.Hand?.Cards ?? "[]") ?? new()).Count;
+                    _db.PlayerGameStats.Add(new PlayerGameStat
+                    {
+                        GameResultId = result.Id,
+                        UserId = mp.UserId,
+                        CardsInHand = mpHandCount,
+                        PlayTimeMinutes = durationMinutes
+                    });
+                    await UpdatePlayerStatisticsAsync(mp.UserId, finalScore, durationMinutes);
+                }
+            }
         }
 
         await _db.SaveChangesAsync();
 
-        var view = BuildView(session, state, newHand, drawPile, finalScore);
+        var allPlayers = BuildPlayersInGame(session, state, userId, newHand);
+        var view = BuildView(session, state, newHand, drawPile, finalScore, allPlayers);
         return GameResultEnvelope<TurnOutcome>.Ok(new TurnOutcome(view, gameEnded, endReason));
     }
 
@@ -240,7 +315,8 @@ public class GameService : IGameService
                 finalScore = _engine.CalculateScore(stored.TotalCardsRemaining);
         }
 
-        var view = BuildView(context.Session, context.State!, context.Hand!, context.DrawPile!, finalScore);
+        var allPlayers = BuildPlayersInGame(context.Session, context.State!, userId, context.Hand!);
+        var view = BuildView(context.Session, context.State!, context.Hand!, context.DrawPile!, finalScore, allPlayers);
         return GameResultEnvelope<GameStateView>.Ok(view);
     }
 
@@ -302,14 +378,12 @@ public class GameService : IGameService
         var snapshot = JsonSerializer.Deserialize<UndoSnapshot>(state.UndoSnapshotJson)
             ?? throw new InvalidOperationException("Failed to deserialize undo snapshot");
 
-        // Restore pile tops.
         state.AscendingPile1 = snapshot.Asc1;
         state.AscendingPile2 = snapshot.Asc2;
         state.DescendingPile1 = snapshot.Desc1;
         state.DescendingPile2 = snapshot.Desc2;
         state.PlayedCardsCount = snapshot.PlayedCardsCountBefore;
 
-        // Return played card to hand and remove replacement card (push it back to top of draw pile).
         hand.Remove(snapshot.PlayedCard);
         hand.Add(snapshot.PlayedCard);
         if (snapshot.DrawnCard is int replaced)
@@ -330,25 +404,207 @@ public class GameService : IGameService
         return GameResultEnvelope<GameStateView>.Ok(BuildView(session, state, hand, drawPile, finalScore: null));
     }
 
-    private async Task<GameContext> LoadGameContextAsync(Guid sessionId, Guid userId)
+    // ── Multiplayer lobby ───────────────────────────────────────────────────
+
+    public async Task<GameResultEnvelope<LobbyView>> CreateMultiplayerGameAsync(Guid userId, int maxPlayers, bool isExpertMode = false)
+    {
+        if (maxPlayers < 2 || maxPlayers > GameRules.MaxPlayers)
+            return GameResultEnvelope<LobbyView>.Fail($"Player count must be between 2 and {GameRules.MaxPlayers}");
+
+        var user = await _db.Users.SingleOrDefaultAsync(u => u.Id == userId);
+        if (user is null) return GameResultEnvelope<LobbyView>.Fail("User not found");
+
+        var session = new GameSession
+        {
+            CreatedBy = userId,
+            GamePhase = "lobby",
+            MaxPlayers = maxPlayers,
+            IsExpertMode = isExpertMode
+        };
+
+        var player = new GamePlayer
+        {
+            GameSessionId = session.Id,
+            UserId = userId,
+            PlayerIndex = 0
+        };
+
+        _db.GameSessions.Add(session);
+        _db.GamePlayers.Add(player);
+        await _db.SaveChangesAsync();
+
+        return GameResultEnvelope<LobbyView>.Ok(BuildLobbyView(session, new[] { (player, user) }));
+    }
+
+    public async Task<GameResultEnvelope<LobbyView>> JoinGameAsync(Guid sessionId, Guid userId)
+    {
+        var session = await _db.GameSessions
+            .Include(s => s.Players).ThenInclude(p => p.User)
+            .SingleOrDefaultAsync(s => s.Id == sessionId);
+
+        if (session is null) return GameResultEnvelope<LobbyView>.Fail("Game session not found");
+        if (session.GamePhase != "lobby") return GameResultEnvelope<LobbyView>.Fail("Game has already started");
+        if (session.Players.Any(p => p.UserId == userId)) return GameResultEnvelope<LobbyView>.Fail("Already in this game");
+        if (session.Players.Count(p => !p.IsSpectator) >= session.MaxPlayers) return GameResultEnvelope<LobbyView>.Fail("Game is full");
+
+        var user = await _db.Users.SingleOrDefaultAsync(u => u.Id == userId);
+        if (user is null) return GameResultEnvelope<LobbyView>.Fail("User not found");
+
+        var player = new GamePlayer
+        {
+            GameSessionId = session.Id,
+            UserId = userId,
+            PlayerIndex = session.Players.Count
+        };
+
+        _db.GamePlayers.Add(player);
+        await _db.SaveChangesAsync();
+
+        var allPlayers = session.Players.Select(p => (p, p.User!)).Append((player, user));
+        return GameResultEnvelope<LobbyView>.Ok(BuildLobbyView(session, allPlayers));
+    }
+
+    public async Task<GameResultEnvelope<GameStateView>> StartMultiplayerGameAsync(Guid sessionId, Guid userId)
+    {
+        var session = await _db.GameSessions
+            .Include(s => s.Players).ThenInclude(p => p.User)
+            .SingleOrDefaultAsync(s => s.Id == sessionId);
+
+        if (session is null) return GameResultEnvelope<GameStateView>.Fail("Game session not found");
+        if (session.CreatedBy != userId) return GameResultEnvelope<GameStateView>.Fail("Only the creator can start the game");
+        if (session.GamePhase != "lobby") return GameResultEnvelope<GameStateView>.Fail("Game is not in lobby phase");
+
+        var activePlayers = session.Players.Where(p => !p.IsSpectator).OrderBy(p => p.PlayerIndex).ToList();
+        if (activePlayers.Count < 2) return GameResultEnvelope<GameStateView>.Fail("Need at least 2 players to start");
+
+        var deck = _shuffler.Shuffle();
+        var handSize = GameRules.GetInitialHandSize(activePlayers.Count, session.IsExpertMode);
+        var deckOffset = 0;
+
+        var handsByPlayer = new Dictionary<Guid, List<int>>();
+        foreach (var p in activePlayers)
+        {
+            var hand = deck.Skip(deckOffset).Take(handSize).ToList();
+            deckOffset += handSize;
+            handsByPlayer[p.Id] = hand;
+
+            _db.PlayerHands.Add(new PlayerHand
+            {
+                GameSessionId = session.Id,
+                PlayerId = p.Id,
+                Cards = JsonSerializer.Serialize(hand)
+            });
+        }
+
+        var drawPile = deck.Skip(deckOffset).ToList();
+        var firstPlayer = activePlayers.First();
+
+        var state = new GameState
+        {
+            GameSessionId = session.Id,
+            CurrentPlayerId = firstPlayer.UserId,
+            AscendingPile1 = GameRules.AscendingStartValue,
+            AscendingPile2 = GameRules.AscendingStartValue,
+            DescendingPile1 = GameRules.DescendingStartValue,
+            DescendingPile2 = GameRules.DescendingStartValue,
+            DrawPileCards = JsonSerializer.Serialize(drawPile),
+            PlayedCardsCount = 0
+        };
+
+        session.GamePhase = "playing";
+        session.StartedAt = DateTime.UtcNow;
+
+        _db.GameStates.Add(state);
+        await _db.SaveChangesAsync();
+
+        // Reload hands for the view
+        await _db.Entry(session).Collection(s => s.Players)
+            .Query().Include(p => p.Hand).Include(p => p.User).LoadAsync();
+
+        var requestingPlayer = session.Players.First(p => p.UserId == userId);
+        var requestingHand = handsByPlayer[requestingPlayer.Id];
+        var allPlayersView = BuildPlayersInGame(session, state, userId, requestingHand);
+
+        return GameResultEnvelope<GameStateView>.Ok(BuildView(session, state, requestingHand, drawPile, null, allPlayersView));
+    }
+
+    public async Task<GameResultEnvelope<bool>> LeaveGameAsync(Guid sessionId, Guid userId)
     {
         var session = await _db.GameSessions
             .Include(s => s.State)
             .Include(s => s.Players).ThenInclude(p => p.Hand)
             .SingleOrDefaultAsync(s => s.Id == sessionId);
 
-        if (session is null)
-            return GameContext.Failed("Game session not found");
-
-        if (session.State is null)
-            return GameContext.Failed("Game state not initialized");
+        if (session is null) return GameResultEnvelope<bool>.Fail("Game session not found");
 
         var player = session.Players.SingleOrDefault(p => p.UserId == userId);
-        if (player is null)
-            return GameContext.Failed("Player is not part of this game");
+        if (player is null) return GameResultEnvelope<bool>.Fail("Not in this game");
 
-        if (player.Hand is null)
-            return GameContext.Failed("Player hand not initialized");
+        if (session.GamePhase == "lobby")
+        {
+            _db.GamePlayers.Remove(player);
+            var remaining = session.Players.Where(p => p.UserId != userId).ToList();
+            if (!remaining.Any())
+            {
+                session.GamePhase = "ended";
+                session.EndedAt = DateTime.UtcNow;
+            }
+            else if (session.CreatedBy == userId)
+            {
+                session.CreatedBy = remaining.OrderBy(p => p.PlayerIndex).First().UserId;
+            }
+        }
+        else if (session.GamePhase == "playing")
+        {
+            // Phase 2: any leave during game ends it without saving stats
+            session.GamePhase = "ended";
+            session.EndedAt = DateTime.UtcNow;
+            var alreadyEnded = await _db.GameResults.AnyAsync(r => r.GameSessionId == sessionId);
+            if (!alreadyEnded)
+            {
+                _db.GameResults.Add(new GameResult
+                {
+                    GameSessionId = sessionId,
+                    TotalCardsRemaining = 0,
+                    IsPerfectGame = false,
+                    EndReason = "disconnection"
+                });
+            }
+        }
+
+        await _db.SaveChangesAsync();
+        return GameResultEnvelope<bool>.Ok(true);
+    }
+
+    public async Task<GameResultEnvelope<LobbyView>> GetLobbyStateAsync(Guid sessionId, Guid userId)
+    {
+        var session = await _db.GameSessions
+            .Include(s => s.Players).ThenInclude(p => p.User)
+            .SingleOrDefaultAsync(s => s.Id == sessionId);
+
+        if (session is null) return GameResultEnvelope<LobbyView>.Fail("Game session not found");
+        if (session.Players.All(p => p.UserId != userId)) return GameResultEnvelope<LobbyView>.Fail("Not in this game");
+        if (session.GamePhase != "lobby") return GameResultEnvelope<LobbyView>.Fail("Game is not in lobby phase");
+
+        return GameResultEnvelope<LobbyView>.Ok(BuildLobbyView(session, session.Players.Select(p => (p, p.User!))));
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+
+    private async Task<GameContext> LoadGameContextAsync(Guid sessionId, Guid userId)
+    {
+        var session = await _db.GameSessions
+            .Include(s => s.State)
+            .Include(s => s.Players).ThenInclude(p => p.Hand)
+            .Include(s => s.Players).ThenInclude(p => p.User)
+            .SingleOrDefaultAsync(s => s.Id == sessionId);
+
+        if (session is null) return GameContext.Failed("Game session not found");
+        if (session.State is null) return GameContext.Failed("Game state not initialized");
+
+        var player = session.Players.SingleOrDefault(p => p.UserId == userId);
+        if (player is null) return GameContext.Failed("Player is not part of this game");
+        if (player.Hand is null) return GameContext.Failed("Player hand not initialized");
 
         var hand = JsonSerializer.Deserialize<List<int>>(player.Hand.Cards) ?? new List<int>();
         var drawPile = JsonSerializer.Deserialize<List<int>>(session.State.DrawPileCards) ?? new List<int>();
@@ -369,8 +625,7 @@ public class GameService : IGameService
         var previousAvg = stats.AverageRemainingCards;
 
         stats.TotalGames = previousTotal + 1;
-        if (score.IsPerfectGame)
-            stats.PerfectGames++;
+        if (score.IsPerfectGame) stats.PerfectGames++;
 
         if (stats.BestScore is null || score.CardsRemaining < stats.BestScore.Value)
             stats.BestScore = score.CardsRemaining;
@@ -385,7 +640,53 @@ public class GameService : IGameService
         stats.LastUpdated = DateTime.UtcNow;
     }
 
-    private static GameStateView BuildView(GameSession session, GameState state, IList<int> hand, IList<int> drawPile, GameScore? finalScore)
+    private static IList<PlayerInGame>? BuildPlayersInGame(GameSession session, GameState state, Guid requestingUserId, IList<int> requestingHand)
+    {
+        if (session.MaxPlayers == 1) return null;
+
+        return session.Players
+            .Where(p => !p.IsSpectator)
+            .OrderBy(p => p.PlayerIndex)
+            .Select(p =>
+            {
+                var handCount = p.UserId == requestingUserId
+                    ? requestingHand.Count
+                    : (p.Hand is not null ? (JsonSerializer.Deserialize<List<int>>(p.Hand.Cards)?.Count ?? 0) : 0);
+                return new PlayerInGame(
+                    UserId: p.UserId,
+                    Username: p.User?.Username ?? "Unknown",
+                    HandCount: handCount,
+                    IsAI: p.IsAI,
+                    IsCurrentTurn: state.CurrentPlayerId == p.UserId,
+                    IsDisconnected: p.DisconnectedAt is not null);
+            })
+            .ToList();
+    }
+
+    private static LobbyView BuildLobbyView(GameSession session, IEnumerable<(GamePlayer player, User user)> players)
+    {
+        var list = players
+            .OrderBy(t => t.player.PlayerIndex)
+            .Select(t => new LobbyPlayer(t.user.Id, t.user.Username, t.player.PlayerIndex, t.player.IsAI))
+            .ToList();
+
+        return new LobbyView(
+            SessionId: session.Id,
+            GamePhase: session.GamePhase,
+            Players: list,
+            MaxPlayers: session.MaxPlayers,
+            IsExpertMode: session.IsExpertMode,
+            CanStart: list.Count >= 2,
+            CreatedBy: session.CreatedBy);
+    }
+
+    private static GameStateView BuildView(
+        GameSession session,
+        GameState state,
+        IList<int> hand,
+        IList<int> drawPile,
+        GameScore? finalScore,
+        IList<PlayerInGame>? players = null)
     {
         var minCards = GameRules.GetMinCardsPerTurn(drawPileEmpty: drawPile.Count == 0, session.IsExpertMode, session.MaxPlayers);
         var piles = new PileTops(state.AscendingPile1, state.AscendingPile2, state.DescendingPile1, state.DescendingPile2);
@@ -400,7 +701,9 @@ public class GameService : IGameService
             Hand: hand,
             MinCardsThisTurn: minCards,
             FinalScore: finalScore,
-            CanUndo: state.UndoSnapshotJson is not null);
+            CanUndo: state.UndoSnapshotJson is not null,
+            CurrentPlayerId: state.CurrentPlayerId,
+            Players: players);
     }
 
     private record GameContext(

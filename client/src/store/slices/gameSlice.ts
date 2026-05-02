@@ -5,8 +5,7 @@ import type {
   FinalScore,
   GamePhase,
   GameStateDto,
-  Player,
-  Spectator,
+  PlayerInGame,
   StagedPlay,
 } from '../../types/game';
 
@@ -22,9 +21,9 @@ export interface GameSliceState {
   playerHand: number[];
   minCardsThisTurn: number;
   isExpertMode: boolean;
-  currentPlayer: string;
-  players: Player[];
-  spectators: Spectator[];
+  currentPlayerId: string | null;
+  players: PlayerInGame[];
+  spectators: string[];
   selectedCard: number | null;
   stagedPlays: StagedPlay[];
   gameMessages: ChatMessage[];
@@ -44,8 +43,7 @@ const initialState: GameSliceState = {
   playerHand: [],
   minCardsThisTurn: 2,
   isExpertMode: false,
-  currentPlayer: '',
-
+  currentPlayerId: null,
   players: [],
   spectators: [],
   selectedCard: null,
@@ -69,6 +67,8 @@ function applyGameState(state: GameSliceState, dto: GameStateDto) {
   state.isExpertMode = dto.isExpertMode;
   state.finalScore = dto.finalScore;
   state.canUndo = dto.canUndo;
+  state.currentPlayerId = dto.currentPlayerId ?? null;
+  state.players = dto.players ?? [];
   state.selectedCard = null;
   state.stagedPlays = [];
 }

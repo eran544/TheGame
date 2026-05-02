@@ -41,6 +41,15 @@ const MainMenuPage: React.FC = () => {
             variant="secondary"
             size="lg"
             fullWidth
+            onClick={() => navigate('/multiplayer')}
+          >
+            Multiplayer
+          </Button>
+
+          <Button
+            variant="secondary"
+            size="lg"
+            fullWidth
             onClick={() => navigate('/dashboard')}
           >
             Dashboard
