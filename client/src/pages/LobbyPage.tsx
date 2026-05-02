@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import Button from '../components/ui/Button';
@@ -10,7 +10,6 @@ import {
   leaveGameAsync,
   clearLobby,
 } from '../store/slices/lobbySlice';
-import { startGameAsync } from '../store/slices/gameSlice';
 import * as gameApi from '../api/gameApi';
 import styles from './LobbyPage.module.css';
 
@@ -21,6 +20,15 @@ const LobbyPage: React.FC = () => {
   const { token, user } = useAppSelector((s) => s.auth);
   const { players, maxPlayers, isExpertMode, canStart, createdBy, status, error } =
     useAppSelector((s) => s.lobby);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyId = () => {
+    if (!sessionId) return;
+    navigator.clipboard.writeText(sessionId).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   useLobbyHub(sessionId ?? null, token, () => {
     // When GameStarted fires, navigate to the multiplayer game
@@ -36,8 +44,7 @@ const LobbyPage: React.FC = () => {
 
   const handleStart = async () => {
     if (!token || !sessionId) return;
-    const dto = await gameApi.startMultiplayerGame(sessionId, token);
-    dispatch(startGameAsync({ isExpertMode: dto.isExpertMode, token }));
+    await gameApi.startMultiplayerGame(sessionId, token);
     navigate(`/game/${sessionId}`);
   };
 
@@ -59,8 +66,13 @@ const LobbyPage: React.FC = () => {
 
         {sessionId && (
           <div className={styles.idBox}>
-            <span className={styles.idLabel}>Share this ID</span>
-            <span className={styles.idValue}>{sessionId}</span>
+            <div className={styles.idText}>
+              <span className={styles.idLabel}>Share this ID</span>
+              <span className={styles.idValue}>{sessionId}</span>
+            </div>
+            <button className={styles.copyBtn} onClick={handleCopyId}>
+              {copied ? 'Copied!' : 'Copy'}
+            </button>
           </div>
         )}
 

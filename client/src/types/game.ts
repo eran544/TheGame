@@ -60,6 +60,16 @@ export interface PileTopsDto {
   descending2: number;
 }
 
+export interface LastMovePlay {
+  card: number;
+  pileSlot: number;
+}
+
+export interface LastMove {
+  playerUsername: string;
+  plays: LastMovePlay[];
+}
+
 export interface GameStateDto {
   sessionId: string;
   gamePhase: GamePhase;
@@ -73,6 +83,7 @@ export interface GameStateDto {
   canUndo: boolean;
   currentPlayerId?: string;
   players?: PlayerInGame[];
+  lastMove?: LastMove;
 }
 
 export interface TurnOutcomeDto {

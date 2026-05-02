@@ -4,6 +4,8 @@ namespace TheGameServer.DTOs.Game;
 public record PileTopsDto(int Ascending1, int Ascending2, int Descending1, int Descending2);
 public record FinalScoreDto(int CardsRemaining, bool IsPerfectGame, string Rating);
 public record PlayerInGameDto(Guid UserId, string Username, int HandCount, bool IsAI, bool IsCurrentTurn, bool IsDisconnected);
+public record LastMovePlayDto(int Card, int PileSlot);
+public record LastMoveDto(string PlayerUsername, IList<LastMovePlayDto> Plays);
 
 public record GameStateDto(
     Guid SessionId,
@@ -17,7 +19,8 @@ public record GameStateDto(
     FinalScoreDto? FinalScore,
     bool CanUndo,
     Guid? CurrentPlayerId = null,
-    IList<PlayerInGameDto>? Players = null);
+    IList<PlayerInGameDto>? Players = null,
+    LastMoveDto? LastMove = null);
 
 public record TurnOutcomeDto(GameStateDto State, bool GameEnded, string? EndReason);
 

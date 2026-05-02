@@ -5,6 +5,7 @@ import type {
   FinalScore,
   GamePhase,
   GameStateDto,
+  LastMove,
   PlayerInGame,
   StagedPlay,
 } from '../../types/game';
@@ -28,7 +29,9 @@ export interface GameSliceState {
   stagedPlays: StagedPlay[];
   gameMessages: ChatMessage[];
   finalScore: FinalScore | null;
+  lastMove: LastMove | null;
   canUndo: boolean;
+  endReason: string | null;
   status: 'idle' | 'loading' | 'failed';
   error: string | null;
 }
@@ -50,7 +53,9 @@ const initialState: GameSliceState = {
   stagedPlays: [],
   gameMessages: [],
   finalScore: null,
+  lastMove: null,
   canUndo: false,
+  endReason: null,
   status: 'idle',
   error: null,
 };
@@ -66,6 +71,7 @@ function applyGameState(state: GameSliceState, dto: GameStateDto) {
   state.minCardsThisTurn = dto.minCardsThisTurn;
   state.isExpertMode = dto.isExpertMode;
   state.finalScore = dto.finalScore;
+  state.lastMove = dto.lastMove ?? null;
   state.canUndo = dto.canUndo;
   state.currentPlayerId = dto.currentPlayerId ?? null;
   state.players = dto.players ?? [];
@@ -126,6 +132,18 @@ export const abandonGameAsync = createAsyncThunk(
   }
 );
 
+// Loads an existing session by ID — used when joining a multiplayer game in progress.
+export const loadGameAsync = createAsyncThunk(
+  'game/load',
+  async ({ sessionId, token }: { sessionId: string; token: string }, { rejectWithValue }) => {
+    try {
+      return await gameApi.getGameState(sessionId, token);
+    } catch (e: unknown) {
+      return rejectWithValue((e as Error).message);
+    }
+  }
+);
+
 // ---------- slice ----------
 
 const gameSlice = createSlice({
@@ -153,10 +171,21 @@ const gameSlice = createSlice({
     },
 
     applyGameStateFromHub(state, action: PayloadAction<GameStateDto>) {
-      // Only apply if the session matches and the game is still in progress
-      if (state.sessionId === action.payload.sessionId) {
-        applyGameState(state, action.payload);
-      }
+      if (state.sessionId !== action.payload.sessionId) return;
+      // Never overwrite the hand from a hub broadcast — the DTO carries the
+      // sending player's cards, not ours. The hand is only updated via HTTP
+      // responses (startGame, playTurn, undo, loadGame).
+      const preservedHand = state.playerHand;
+      applyGameState(state, action.payload);
+      state.playerHand = preservedHand;
+    },
+
+    gameEndedFromHub(state, action: PayloadAction<{ reason: string }>) {
+      if (state.gamePhase === 'ended') return;
+      state.gamePhase = 'ended';
+      state.endReason = action.payload.reason;
+      state.selectedCard = null;
+      state.stagedPlays = [];
     },
 
     addChatMessage(state, action: PayloadAction<ChatMessage>) {
@@ -218,6 +247,21 @@ const gameSlice = createSlice({
         state.error = action.payload as string;
       });
 
+    // loadGame (multiplayer join)
+    builder
+      .addCase(loadGameAsync.pending, (state) => {
+        state.status = 'loading';
+        state.error = null;
+      })
+      .addCase(loadGameAsync.fulfilled, (state, action) => {
+        state.status = 'idle';
+        applyGameState(state, action.payload);
+      })
+      .addCase(loadGameAsync.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.payload as string;
+      });
+
     // abandonGame
     builder
       .addCase(abandonGameAsync.pending, (state) => {
@@ -240,6 +284,7 @@ export const {
   unstagePaly,
   clearStagedPlays,
   applyGameStateFromHub,
+  gameEndedFromHub,
   addChatMessage,
   clearGame,
   clearGameError,

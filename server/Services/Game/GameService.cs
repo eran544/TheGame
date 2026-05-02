@@ -18,9 +18,11 @@ public interface IGameService
     Task<GameResultEnvelope<LobbyView>> CreateMultiplayerGameAsync(Guid userId, int maxPlayers, bool isExpertMode = false);
     Task<GameResultEnvelope<LobbyView>> JoinGameAsync(Guid sessionId, Guid userId);
     Task<GameResultEnvelope<GameStateView>> StartMultiplayerGameAsync(Guid sessionId, Guid userId);
-    Task<GameResultEnvelope<bool>> LeaveGameAsync(Guid sessionId, Guid userId);
+    Task<GameResultEnvelope<LeaveResult>> LeaveGameAsync(Guid sessionId, Guid userId);
     Task<GameResultEnvelope<LobbyView>> GetLobbyStateAsync(Guid sessionId, Guid userId);
 }
+
+public record LeaveResult(bool GameEnded);
 
 public record GameResultEnvelope<T>(bool Success, T? Value, string? Error)
 {
@@ -40,11 +42,14 @@ public record GameStateView(
     GameScore? FinalScore,
     bool CanUndo,
     Guid? CurrentPlayerId = null,
-    IList<PlayerInGame>? Players = null);
+    IList<PlayerInGame>? Players = null,
+    LastMove? LastMove = null);
 
 public record TurnOutcome(GameStateView State, bool GameEnded, string? EndReason);
 
 public record PlayerInGame(Guid UserId, string Username, int HandCount, bool IsAI, bool IsCurrentTurn, bool IsDisconnected);
+public record LastMovePlay(int Card, int PileSlot);
+public record LastMove(string PlayerUsername, IList<LastMovePlay> Plays);
 public record LobbyPlayer(Guid UserId, string Username, int PlayerIndex, bool IsAI);
 public record LobbyView(Guid SessionId, string GamePhase, IList<LobbyPlayer> Players, int MaxPlayers, bool IsExpertMode, bool CanStart, Guid CreatedBy);
 
@@ -296,8 +301,12 @@ public class GameService : IGameService
 
         await _db.SaveChangesAsync();
 
+        var actingUsername = player.User?.Username ?? "Unknown";
+        var lastMove = new LastMove(actingUsername,
+            plays.Select(p => new LastMovePlay(p.Card, (int)p.Slot)).ToList());
+
         var allPlayers = BuildPlayersInGame(session, state, userId, newHand);
-        var view = BuildView(session, state, newHand, drawPile, finalScore, allPlayers);
+        var view = BuildView(session, state, newHand, drawPile, finalScore, allPlayers, lastMove);
         return GameResultEnvelope<TurnOutcome>.Ok(new TurnOutcome(view, gameEnded, endReason));
     }
 
@@ -460,8 +469,10 @@ public class GameService : IGameService
         _db.GamePlayers.Add(player);
         await _db.SaveChangesAsync();
 
-        var allPlayers = session.Players.Select(p => (p, p.User!)).Append((player, user));
-        return GameResultEnvelope<LobbyView>.Ok(BuildLobbyView(session, allPlayers));
+        // EF Core already added player to session.Players via navigation fixup;
+        // set User manually since it wasn't included in the ThenInclude.
+        player.User = user;
+        return GameResultEnvelope<LobbyView>.Ok(BuildLobbyView(session, session.Players.Select(p => (p, p.User!))));
     }
 
     public async Task<GameResultEnvelope<GameStateView>> StartMultiplayerGameAsync(Guid sessionId, Guid userId)
@@ -528,17 +539,17 @@ public class GameService : IGameService
         return GameResultEnvelope<GameStateView>.Ok(BuildView(session, state, requestingHand, drawPile, null, allPlayersView));
     }
 
-    public async Task<GameResultEnvelope<bool>> LeaveGameAsync(Guid sessionId, Guid userId)
+    public async Task<GameResultEnvelope<LeaveResult>> LeaveGameAsync(Guid sessionId, Guid userId)
     {
         var session = await _db.GameSessions
             .Include(s => s.State)
             .Include(s => s.Players).ThenInclude(p => p.Hand)
             .SingleOrDefaultAsync(s => s.Id == sessionId);
 
-        if (session is null) return GameResultEnvelope<bool>.Fail("Game session not found");
+        if (session is null) return GameResultEnvelope<LeaveResult>.Fail("Game session not found");
 
         var player = session.Players.SingleOrDefault(p => p.UserId == userId);
-        if (player is null) return GameResultEnvelope<bool>.Fail("Not in this game");
+        if (player is null) return GameResultEnvelope<LeaveResult>.Fail("Not in this game");
 
         if (session.GamePhase == "lobby")
         {
@@ -553,8 +564,11 @@ public class GameService : IGameService
             {
                 session.CreatedBy = remaining.OrderBy(p => p.PlayerIndex).First().UserId;
             }
+            await _db.SaveChangesAsync();
+            return GameResultEnvelope<LeaveResult>.Ok(new LeaveResult(false));
         }
-        else if (session.GamePhase == "playing")
+
+        if (session.GamePhase == "playing")
         {
             // Phase 2: any leave during game ends it without saving stats
             session.GamePhase = "ended";
@@ -570,10 +584,12 @@ public class GameService : IGameService
                     EndReason = "disconnection"
                 });
             }
+            await _db.SaveChangesAsync();
+            return GameResultEnvelope<LeaveResult>.Ok(new LeaveResult(true));
         }
 
-        await _db.SaveChangesAsync();
-        return GameResultEnvelope<bool>.Ok(true);
+        // Game already ended — no-op, don't broadcast again
+        return GameResultEnvelope<LeaveResult>.Ok(new LeaveResult(false));
     }
 
     public async Task<GameResultEnvelope<LobbyView>> GetLobbyStateAsync(Guid sessionId, Guid userId)
@@ -686,7 +702,8 @@ public class GameService : IGameService
         IList<int> hand,
         IList<int> drawPile,
         GameScore? finalScore,
-        IList<PlayerInGame>? players = null)
+        IList<PlayerInGame>? players = null,
+        LastMove? lastMove = null)
     {
         var minCards = GameRules.GetMinCardsPerTurn(drawPileEmpty: drawPile.Count == 0, session.IsExpertMode, session.MaxPlayers);
         var piles = new PileTops(state.AscendingPile1, state.AscendingPile2, state.DescendingPile1, state.DescendingPile2);
@@ -703,7 +720,8 @@ public class GameService : IGameService
             FinalScore: finalScore,
             CanUndo: state.UndoSnapshotJson is not null,
             CurrentPlayerId: state.CurrentPlayerId,
-            Players: players);
+            Players: players,
+            LastMove: lastMove);
     }
 
     private record GameContext(

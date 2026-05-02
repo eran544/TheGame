@@ -132,7 +132,7 @@
 
 ## Phase 2: Multiplayer Online Implementation
 
-- [ ] 10. Build multiplayer game session management
+- [x] 10. Build multiplayer game session management
   - Create game lobby system for creating/joining games
   - Implement multiplayer game state synchronization
   - Build turn-based gameplay mechanics
@@ -140,7 +140,27 @@
   - Implement game session cleanup and management
   - _Requirements: 2.1, 2.3_
 
-- [ ] 11. Implement real-time multiplayer communication
+- [x] 10.1 Show last move to all players after a turn
+  - After a player submits their turn, broadcast which cards they played and on which piles
+  - Add LastMove / LastMovePlay records to service layer and LastMoveDto / LastMovePlayDto to DTOs
+  - Populate LastMove in PlayTurnAsync using the acting player's username and submitted plays
+  - Map LastMove through MapState in the controller and include it in the SignalR broadcast
+  - Add lastMove field to GameStateDto and GameSliceState on the client
+  - Display a "X played: card → pile" banner in MultiplayerGamePage visible to all players
+  - _Requirements: 2.1, 2.3_
+
+- [x]* 10.2 Write unit tests for multiplayer game session management
+  - Test lobby creation with valid and invalid player counts
+  - Test joining a game (success, already joined, game full, already started)
+  - Test starting a multiplayer game (deals hands, enforces host-only rule)
+  - Test turn enforcement (only current player can play)
+  - Test turn advancement to next player after a valid move
+  - Test last-move metadata is populated correctly after a turn
+  - Test leaving during lobby (host transfer, last player ends session)
+  - Test leaving during an active game ends the session
+  - _Requirements: 2.1, 2.3_
+
+- [x] 11. Implement real-time multiplayer communication
   - Extend SignalR hub for multiplayer broadcasts
   - Create real-time game state updates
   - Implement player action broadcasting

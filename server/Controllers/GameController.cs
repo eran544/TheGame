@@ -99,8 +99,10 @@ public class GameController : ControllerBase
     {
         var result = await _gameService.LeaveGameAsync(sessionId, GetUserId());
         if (!result.Success) return BadRequest(new { error = result.Error });
-        await _hub.Clients.Group(GameHub.GroupName(sessionId.ToString()))
-            .SendAsync("PlayerLeft", GetUserId());
+        var group = _hub.Clients.Group(GameHub.GroupName(sessionId.ToString()));
+        await group.SendAsync("PlayerLeft", GetUserId());
+        if (result.Value!.GameEnded)
+            await group.SendAsync("GameEnded", new { reason = "player_left" });
         return Ok();
     }
 
@@ -142,7 +144,10 @@ public class GameController : ControllerBase
             v.FinalScore.Rating.ToString()),
         v.CanUndo,
         v.CurrentPlayerId,
-        v.Players?.Select(p => new PlayerInGameDto(p.UserId, p.Username, p.HandCount, p.IsAI, p.IsCurrentTurn, p.IsDisconnected)).ToList());
+        v.Players?.Select(p => new PlayerInGameDto(p.UserId, p.Username, p.HandCount, p.IsAI, p.IsCurrentTurn, p.IsDisconnected)).ToList(),
+        v.LastMove is null ? null : new LastMoveDto(
+            v.LastMove.PlayerUsername,
+            v.LastMove.Plays.Select(p => new LastMovePlayDto(p.Card, p.PileSlot)).ToList()));
 
     private static LobbyStateDto MapLobby(LobbyView v) => new(
         v.SessionId,

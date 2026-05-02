@@ -11,7 +11,7 @@ import useAppSelector from '../hooks/useAppSelector';
 import { useGameHub } from '../hooks/useGameHub';
 import {
   playTurnAsync,
-  abandonGameAsync,
+  loadGameAsync,
   selectCard,
   stagePlay,
   clearStagedPlays,
@@ -50,10 +50,12 @@ const MultiplayerGamePage: React.FC = () => {
     selectedCard,
     stagedPlays,
     finalScore,
+    lastMove,
     isExpertMode,
     minCardsThisTurn,
     currentPlayerId,
     players,
+    endReason,
     status,
     error,
   } = useAppSelector((s) => s.game);
@@ -61,23 +63,34 @@ const MultiplayerGamePage: React.FC = () => {
   useGameHub(sessionId ?? null, token);
 
   useEffect(() => {
-    // Load the existing multiplayer session state on mount
     if (token && sessionId) {
-      gameApi.getGameState(sessionId, token).then((dto) => {
-        dispatch({ type: 'game/start/fulfilled', payload: dto });
-      });
+      dispatch(loadGameAsync({ sessionId, token }));
     }
     return () => { dispatch(clearGame()); };
   }, []);
 
   const isMyTurn = user?.id === currentPlayerId;
 
+  // Apply staged plays to pile tops so subsequent cards in the same turn
+  // are validated and displayed against the already-staged state.
+  const effectivePiles = useMemo<{ asc: [number, number]; desc: [number, number] }>(() => {
+    const asc: [number, number] = [ascendingPiles[0], ascendingPiles[1]];
+    const desc: [number, number] = [descendingPiles[0], descendingPiles[1]];
+    for (const sp of stagedPlays) {
+      if (sp.pileSlot === 0) asc[0] = sp.card;
+      else if (sp.pileSlot === 1) asc[1] = sp.card;
+      else if (sp.pileSlot === 2) desc[0] = sp.card;
+      else if (sp.pileSlot === 3) desc[1] = sp.card;
+    }
+    return { asc, desc };
+  }, [ascendingPiles, descendingPiles, stagedPlays]);
+
   const validPileSlots = useMemo(
     () =>
       selectedCard !== null && isMyTurn
-        ? getValidPileSlots(selectedCard, ascendingPiles, descendingPiles)
+        ? getValidPileSlots(selectedCard, effectivePiles.asc, effectivePiles.desc)
         : null,
-    [selectedCard, isMyTurn, ascendingPiles, descendingPiles]
+    [selectedCard, isMyTurn, effectivePiles]
   );
 
   const handlePileClick = (slot: PileSlot) => {
@@ -165,6 +178,17 @@ const MultiplayerGamePage: React.FC = () => {
               : `${currentPlayerName}'s turn`}
         </div>
 
+        {lastMove && (
+          <div className={styles.lastMove}>
+            <span className={styles.lastMoveLabel}>{lastMove.playerUsername} played:</span>
+            {lastMove.plays.map((p, i) => (
+              <span key={i} className={styles.lastMoveTag}>
+                {p.card} → {p.pileSlot < 2 ? '↑' : '↓'}{p.pileSlot % 2 + 1}
+              </span>
+            ))}
+          </div>
+        )}
+
         {stagedPlays.length > 0 && (
           <div className={styles.staged}>
             {stagedPlays.map((sp, i) => (
@@ -176,8 +200,8 @@ const MultiplayerGamePage: React.FC = () => {
         )}
 
         <GameBoard
-          ascendingPiles={ascendingPiles}
-          descendingPiles={descendingPiles}
+          ascendingPiles={effectivePiles.asc}
+          descendingPiles={effectivePiles.desc}
           validPileSlots={isMyTurn ? validPileSlots : null}
           onPileClick={handlePileClick}
           isLoading={status === 'loading'}
@@ -217,6 +241,22 @@ const MultiplayerGamePage: React.FC = () => {
           onPlayAgain={() => navigate('/multiplayer')}
           onBackToMenu={handleBackToMenu}
         />
+      )}
+
+      {gamePhase === 'ended' && !finalScore && (
+        <div className={styles.disconnectOverlay}>
+          <div className={styles.disconnectModal}>
+            <p className={styles.disconnectTitle}>Game Over</p>
+            <p className={styles.disconnectMessage}>
+              {endReason === 'disconnection'
+                ? 'A player disconnected. The game has ended.'
+                : 'A player left. The game has ended.'}
+            </p>
+            <Button variant="primary" onClick={handleBackToMenu}>
+              Back to Menu
+            </Button>
+          </div>
+        </div>
       )}
     </Layout>
   );
