@@ -11,6 +11,7 @@ public class GameState
     public int DescendingPile2 { get; set; } = 100;
     public string DrawPileCards { get; set; } = "[]"; // JSON array
     public int PlayedCardsCount { get; set; } = 0;
+    public string? UndoSnapshotJson { get; set; }
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     public GameSession GameSession { get; set; } = null!;

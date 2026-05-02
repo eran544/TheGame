@@ -13,6 +13,7 @@ import {
   startGameAsync,
   playTurnAsync,
   abandonGameAsync,
+  undoMoveAsync,
   selectCard,
   clearGame,
   clearGameError,
@@ -48,6 +49,7 @@ const GamePage: React.FC = () => {
     selectedCard,
     finalScore,
     isExpertMode,
+    canUndo,
     status,
     error,
   } = useAppSelector((s) => s.game);
@@ -71,6 +73,11 @@ const GamePage: React.FC = () => {
     if (selectedCard === null || !sessionId || !token) return;
     if (!validPileSlots?.has(slot)) return;
     dispatch(playTurnAsync({ sessionId, plays: [{ card: selectedCard, pileSlot: slot }], token }));
+  };
+
+  const handleUndo = () => {
+    if (!sessionId || !token) return;
+    dispatch(undoMoveAsync({ sessionId, token }));
   };
 
   const handleAbandon = () => {
@@ -140,6 +147,9 @@ const GamePage: React.FC = () => {
         />
 
         <div className={styles.actions}>
+          <Button onClick={handleUndo} disabled={!canUndo || status === 'loading'}>
+            Undo
+          </Button>
           <Button variant="danger" onClick={handleAbandon} disabled={status === 'loading'}>
             Abandon
           </Button>

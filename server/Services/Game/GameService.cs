@@ -11,6 +11,7 @@ public interface IGameService
     Task<GameResultEnvelope<TurnOutcome>> PlayTurnAsync(Guid sessionId, Guid userId, IList<CardPlay> plays);
     Task<GameResultEnvelope<GameStateView>> GetGameStateAsync(Guid sessionId, Guid userId);
     Task<GameResultEnvelope<bool>> AbandonGameAsync(Guid sessionId, Guid userId);
+    Task<GameResultEnvelope<GameStateView>> UndoLastMoveAsync(Guid sessionId, Guid userId);
 }
 
 public record GameResultEnvelope<T>(bool Success, T? Value, string? Error)
@@ -28,9 +29,17 @@ public record GameStateView(
     int PlayedCardsCount,
     IList<int> Hand,
     int MinCardsThisTurn,
-    GameScore? FinalScore);
+    GameScore? FinalScore,
+    bool CanUndo);
 
 public record TurnOutcome(GameStateView State, bool GameEnded, string? EndReason);
+
+// Stored as JSON in GameState.UndoSnapshotJson — captures everything needed to reverse one card play.
+file record UndoSnapshot(
+    int Asc1, int Asc2, int Desc1, int Desc2,
+    int PlayedCard,
+    int? DrawnCard,
+    int PlayedCardsCountBefore);
 
 public class GameService : IGameService
 {
@@ -125,14 +134,36 @@ public class GameService : IGameService
         var newHand = validation.ResultingHand.ToList();
         var newPiles = validation.ResultingPiles;
 
+        // Single card plays in single-player mode are undoable: snapshot before mutating.
+        int? drawnCard = null;
         var refillCount = drawPile.Count == 0
             ? 0
             : Math.Min(plays.Count, drawPile.Count);
 
-        for (var i = 0; i < refillCount; i++)
+        if (refillCount > 0)
         {
-            newHand.Add(drawPile[0]);
-            drawPile.RemoveAt(0);
+            drawnCard = drawPile[0];
+            for (var i = 0; i < refillCount; i++)
+            {
+                newHand.Add(drawPile[0]);
+                drawPile.RemoveAt(0);
+            }
+        }
+
+        var isSinglePlayer = session.MaxPlayers == 1;
+        if (isSinglePlayer && plays.Count == 1)
+        {
+            var snapshot = new UndoSnapshot(
+                state.AscendingPile1, state.AscendingPile2,
+                state.DescendingPile1, state.DescendingPile2,
+                plays[0].Card,
+                drawnCard,
+                state.PlayedCardsCount);
+            state.UndoSnapshotJson = JsonSerializer.Serialize(snapshot);
+        }
+        else
+        {
+            state.UndoSnapshotJson = null;
         }
 
         state.AscendingPile1 = newPiles.Ascending1;
@@ -160,6 +191,7 @@ public class GameService : IGameService
             finalScore = _engine.CalculateScore(cardsRemaining);
             endReason = perfectGame ? "completed" : "completed";
 
+            state.UndoSnapshotJson = null;
             session.GamePhase = "ended";
             session.EndedAt = DateTime.UtcNow;
 
@@ -246,6 +278,58 @@ public class GameService : IGameService
         return GameResultEnvelope<bool>.Ok(true);
     }
 
+    public async Task<GameResultEnvelope<GameStateView>> UndoLastMoveAsync(Guid sessionId, Guid userId)
+    {
+        var context = await LoadGameContextAsync(sessionId, userId);
+        if (context.Error is not null)
+            return GameResultEnvelope<GameStateView>.Fail(context.Error);
+
+        var session = context.Session!;
+        var state = context.State!;
+        var player = context.Player!;
+        var hand = context.Hand!;
+        var drawPile = context.DrawPile!;
+
+        if (session.GamePhase != "playing")
+            return GameResultEnvelope<GameStateView>.Fail("Game is not in progress");
+
+        if (session.MaxPlayers != 1)
+            return GameResultEnvelope<GameStateView>.Fail("Undo is only available in single-player mode");
+
+        if (state.UndoSnapshotJson is null)
+            return GameResultEnvelope<GameStateView>.Fail("No move to undo");
+
+        var snapshot = JsonSerializer.Deserialize<UndoSnapshot>(state.UndoSnapshotJson)
+            ?? throw new InvalidOperationException("Failed to deserialize undo snapshot");
+
+        // Restore pile tops.
+        state.AscendingPile1 = snapshot.Asc1;
+        state.AscendingPile2 = snapshot.Asc2;
+        state.DescendingPile1 = snapshot.Desc1;
+        state.DescendingPile2 = snapshot.Desc2;
+        state.PlayedCardsCount = snapshot.PlayedCardsCountBefore;
+
+        // Return played card to hand and remove replacement card (push it back to top of draw pile).
+        hand.Remove(snapshot.PlayedCard);
+        hand.Add(snapshot.PlayedCard);
+        if (snapshot.DrawnCard is int replaced)
+        {
+            hand.Remove(replaced);
+            drawPile.Insert(0, replaced);
+        }
+
+        state.DrawPileCards = JsonSerializer.Serialize(drawPile);
+        state.UndoSnapshotJson = null;
+        state.UpdatedAt = DateTime.UtcNow;
+
+        player.Hand!.Cards = JsonSerializer.Serialize(hand);
+        player.Hand.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync();
+
+        return GameResultEnvelope<GameStateView>.Ok(BuildView(session, state, hand, drawPile, finalScore: null));
+    }
+
     private async Task<GameContext> LoadGameContextAsync(Guid sessionId, Guid userId)
     {
         var session = await _db.GameSessions
@@ -315,7 +399,8 @@ public class GameService : IGameService
             PlayedCardsCount: state.PlayedCardsCount,
             Hand: hand,
             MinCardsThisTurn: minCards,
-            FinalScore: finalScore);
+            FinalScore: finalScore,
+            CanUndo: state.UndoSnapshotJson is not null);
     }
 
     private record GameContext(

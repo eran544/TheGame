@@ -15,12 +15,12 @@ namespace TheGameServer.Migrations
                 name: "Users",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Username = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
-                    PasswordHash = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: false),
-                    IsAdmin = table.Column<bool>(type: "bit", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    LastLoginAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Username = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    PasswordHash = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    IsAdmin = table.Column<bool>(type: "boolean", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    LastLoginAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -31,15 +31,15 @@ namespace TheGameServer.Migrations
                 name: "GameSessions",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    GamePhase = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
-                    MaxPlayers = table.Column<int>(type: "int", nullable: false),
-                    IsExpertMode = table.Column<bool>(type: "bit", nullable: false),
-                    CustomRules = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    StartedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    EndedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uuid", nullable: false),
+                    GamePhase = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    MaxPlayers = table.Column<int>(type: "integer", nullable: false),
+                    IsExpertMode = table.Column<bool>(type: "boolean", nullable: false),
+                    CustomRules = table.Column<string>(type: "text", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    StartedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    EndedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -56,14 +56,14 @@ namespace TheGameServer.Migrations
                 name: "PlayerStatistics",
                 columns: table => new
                 {
-                    UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    TotalGames = table.Column<int>(type: "int", nullable: false),
-                    PerfectGames = table.Column<int>(type: "int", nullable: false),
-                    BestScore = table.Column<int>(type: "int", nullable: true),
-                    AverageRemainingCards = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: false),
-                    TotalPlayTimeMinutes = table.Column<int>(type: "int", nullable: false),
-                    AIAssistedGames = table.Column<int>(type: "int", nullable: false),
-                    LastUpdated = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    TotalGames = table.Column<int>(type: "integer", nullable: false),
+                    PerfectGames = table.Column<int>(type: "integer", nullable: false),
+                    BestScore = table.Column<int>(type: "integer", nullable: true),
+                    AverageRemainingCards = table.Column<decimal>(type: "numeric(5,2)", precision: 5, scale: 2, nullable: false),
+                    TotalPlayTimeMinutes = table.Column<int>(type: "integer", nullable: false),
+                    AIAssistedGames = table.Column<int>(type: "integer", nullable: false),
+                    LastUpdated = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -80,11 +80,11 @@ namespace TheGameServer.Migrations
                 name: "UserSessions",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    SessionToken = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: false),
-                    ExpiresAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    SessionToken = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    ExpiresAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -101,13 +101,13 @@ namespace TheGameServer.Migrations
                 name: "ChatMessages",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    GameSessionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Message = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    IsValidated = table.Column<bool>(type: "bit", nullable: false),
-                    ValidationReason = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true),
-                    SentAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    GameSessionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Message = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    IsValidated = table.Column<bool>(type: "boolean", nullable: false),
+                    ValidationReason = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
+                    SentAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -130,15 +130,15 @@ namespace TheGameServer.Migrations
                 name: "GamePlayers",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    GameSessionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    PlayerIndex = table.Column<int>(type: "int", nullable: false),
-                    IsAI = table.Column<bool>(type: "bit", nullable: false),
-                    IsSpectator = table.Column<bool>(type: "bit", nullable: false),
-                    ReplacedByAI = table.Column<bool>(type: "bit", nullable: false),
-                    JoinedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    DisconnectedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    GameSessionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    PlayerIndex = table.Column<int>(type: "integer", nullable: false),
+                    IsAI = table.Column<bool>(type: "boolean", nullable: false),
+                    IsSpectator = table.Column<bool>(type: "boolean", nullable: false),
+                    ReplacedByAI = table.Column<bool>(type: "boolean", nullable: false),
+                    JoinedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    DisconnectedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -161,13 +161,13 @@ namespace TheGameServer.Migrations
                 name: "GameResults",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    GameSessionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    TotalCardsRemaining = table.Column<int>(type: "int", nullable: false),
-                    IsPerfectGame = table.Column<bool>(type: "bit", nullable: false),
-                    GameDurationMinutes = table.Column<int>(type: "int", nullable: true),
-                    EndReason = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    CompletedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    GameSessionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    TotalCardsRemaining = table.Column<int>(type: "integer", nullable: false),
+                    IsPerfectGame = table.Column<bool>(type: "boolean", nullable: false),
+                    GameDurationMinutes = table.Column<int>(type: "integer", nullable: true),
+                    EndReason = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
+                    CompletedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -184,16 +184,16 @@ namespace TheGameServer.Migrations
                 name: "GameStates",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    GameSessionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    CurrentPlayerId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    AscendingPile1 = table.Column<int>(type: "int", nullable: false),
-                    AscendingPile2 = table.Column<int>(type: "int", nullable: false),
-                    DescendingPile1 = table.Column<int>(type: "int", nullable: false),
-                    DescendingPile2 = table.Column<int>(type: "int", nullable: false),
-                    DrawPileCards = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    PlayedCardsCount = table.Column<int>(type: "int", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    GameSessionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    CurrentPlayerId = table.Column<Guid>(type: "uuid", nullable: true),
+                    AscendingPile1 = table.Column<int>(type: "integer", nullable: false),
+                    AscendingPile2 = table.Column<int>(type: "integer", nullable: false),
+                    DescendingPile1 = table.Column<int>(type: "integer", nullable: false),
+                    DescendingPile2 = table.Column<int>(type: "integer", nullable: false),
+                    DrawPileCards = table.Column<string>(type: "text", nullable: false),
+                    PlayedCardsCount = table.Column<int>(type: "integer", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -210,11 +210,11 @@ namespace TheGameServer.Migrations
                 name: "PlayerHands",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    GameSessionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    PlayerId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Cards = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    GameSessionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    PlayerId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Cards = table.Column<string>(type: "text", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -237,12 +237,12 @@ namespace TheGameServer.Migrations
                 name: "PlayerGameStats",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    GameResultId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    CardsInHand = table.Column<int>(type: "int", nullable: false),
-                    WasReplacedByAI = table.Column<bool>(type: "bit", nullable: false),
-                    PlayTimeMinutes = table.Column<int>(type: "int", nullable: true)
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    GameResultId = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    CardsInHand = table.Column<int>(type: "integer", nullable: false),
+                    WasReplacedByAI = table.Column<bool>(type: "boolean", nullable: false),
+                    PlayTimeMinutes = table.Column<int>(type: "integer", nullable: true)
                 },
                 constraints: table =>
                 {

@@ -129,6 +129,38 @@ const sections: Section[] = [
     ),
   },
   {
+    title: 'Talking to Your Team',
+    visual: (
+      <div className={styles.chatDemo}>
+        <div className={styles.chatCol}>
+          <span className={[styles.chatColLabel, styles.chatAllowLabel].join(' ')}>✓ Allowed</span>
+          {["I need that pile!", "Don't touch pile 2", "I'm in trouble here…", "Things are looking good!"].map((msg) => (
+            <div key={msg} className={[styles.chatMsg, styles.chatAllow].join(' ')}>{msg}</div>
+          ))}
+        </div>
+        <div className={styles.chatCol}>
+          <span className={[styles.chatColLabel, styles.chatBlockLabel].join(' ')}>✗ Forbidden</span>
+          {["I have a 47", "My lowest card is 23", "I'm holding near 80"].map((msg) => (
+            <div key={msg} className={[styles.chatMsg, styles.chatBlock].join(' ')}>{msg}</div>
+          ))}
+        </div>
+      </div>
+    ),
+    body: (
+      <>
+        <p>
+          In multiplayer you can chat — but you <strong>cannot reveal card values</strong>.
+          Mentioning specific numbers (yours or on any pile) is forbidden.
+        </p>
+        <p>
+          You <strong>can</strong> hint at strategy vaguely: claim a pile, warn teammates off,
+          or express urgency. <em>"I need that pile"</em> or <em>"don't touch pile 2"</em> are
+          fair game — <em>"I have a 47"</em> is not.
+        </p>
+      </>
+    ),
+  },
+  {
     title: 'Scoring',
     visual: (
       <div className={styles.ratings}>

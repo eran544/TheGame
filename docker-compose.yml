@@ -1,19 +1,23 @@
 services:
-  # SQL Server Database
-  sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    platform: linux/amd64
-    container_name: thegame-sqlserver
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: thegame-postgres
     environment:
-      - ACCEPT_EULA=Y
-      - SA_PASSWORD=YourStrong@Passw0rd
-      - MSSQL_PID=Developer
+      - POSTGRES_DB=TheGameDB
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=YourStrong@Passw0rd
     ports:
-      - "1433:1433"
+      - "5432:5432"
     volumes:
-      - sqlserver_data:/var/opt/mssql
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - thegame-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d TheGameDB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   # Redis Cache
   redis:
@@ -37,9 +41,13 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=TheGameDB;Username=postgres;Password=YourStrong@Passw0rd
+      - ConnectionStrings__Redis=redis:6379
     depends_on:
-      - sqlserver
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - thegame-network
     volumes:
@@ -83,7 +91,7 @@ services:
     command: ["npm", "start"]
 
 volumes:
-  sqlserver_data:
+  postgres_data:
   redis_data:
 
 networks:

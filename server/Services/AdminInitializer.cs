@@ -34,6 +34,8 @@ public class AdminInitializer : IHostedService
         using var scope = _services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
+        await db.Database.MigrateAsync(cancellationToken);
+
         var exists = await db.Users.AnyAsync(u => u.Username == _settings.Username, cancellationToken);
         if (exists)
         {

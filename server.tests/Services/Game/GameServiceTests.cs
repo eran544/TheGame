@@ -43,7 +43,7 @@ public class GameServiceTests : IDisposable
         view.DrawPileCount.Should().Be(90);
         view.PlayedCardsCount.Should().Be(0);
         view.Piles.Should().Be(PileTops.Initial());
-        view.MinCardsThisTurn.Should().Be(2);
+        view.MinCardsThisTurn.Should().Be(1); // single-player always plays one card at a time
 
         // Persistence
         (await _db.GameSessions.CountAsync()).Should().Be(1);
@@ -59,7 +59,7 @@ public class GameServiceTests : IDisposable
         result.Success.Should().BeTrue();
         result.Value!.Hand.Should().HaveCount(7);
         result.Value.IsExpertMode.Should().BeTrue();
-        result.Value.MinCardsThisTurn.Should().Be(3);
+        result.Value.MinCardsThisTurn.Should().Be(1); // single-player always plays one card at a time
     }
 
     [Fact]

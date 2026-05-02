@@ -81,6 +81,7 @@ export interface GameStateDto {
   hand: number[];
   minCardsThisTurn: number;
   finalScore: FinalScore | null;
+  canUndo: boolean;
 }
 
 export interface TurnOutcomeDto {

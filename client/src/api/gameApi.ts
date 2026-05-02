@@ -20,3 +20,7 @@ export function playTurn(
 export function abandonGame(sessionId: string, token: string) {
   return apiClient.post<void>(`/api/game/${sessionId}/abandon`, {}, token);
 }
+
+export function undoMove(sessionId: string, token: string) {
+  return apiClient.post<GameStateDto>(`/api/game/${sessionId}/undo`, {}, token);
+}

@@ -208,7 +208,57 @@
   color: var(--color-text);
 }
 
-/* ── Section 5: ratings ── */
+/* ── Section 5: chat demo ── */
+.chatDemo {
+  display: flex;
+  gap: 0.75rem;
+  width: 100%;
+  justify-content: center;
+}
+
+.chatCol {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  flex: 1;
+  max-width: 200px;
+}
+
+.chatColLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.1rem;
+}
+
+.chatAllowLabel { color: var(--color-pile-asc); }
+.chatBlockLabel { color: var(--color-pile-desc); }
+
+.chatMsg {
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  line-height: 1.35;
+  border: 1px solid transparent;
+}
+
+.chatAllow {
+  background: var(--color-pile-asc-dim);
+  border-color: var(--color-pile-asc);
+  color: var(--color-text-secondary);
+}
+
+.chatBlock {
+  background: var(--color-pile-desc-dim);
+  border-color: var(--color-pile-desc);
+  color: var(--color-text-secondary);
+  text-decoration: line-through;
+  text-decoration-color: var(--color-pile-desc);
+  opacity: 0.75;
+}
+
+/* ── Section 6: ratings ── */
 .ratings {
   display: flex;
   flex-direction: column;

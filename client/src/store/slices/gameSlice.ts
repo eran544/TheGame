@@ -29,6 +29,7 @@ export interface GameSliceState {
   stagedPlays: StagedPlay[];
   gameMessages: ChatMessage[];
   finalScore: FinalScore | null;
+  canUndo: boolean;
   status: 'idle' | 'loading' | 'failed';
   error: string | null;
 }
@@ -51,6 +52,7 @@ const initialState: GameSliceState = {
   stagedPlays: [],
   gameMessages: [],
   finalScore: null,
+  canUndo: false,
   status: 'idle',
   error: null,
 };
@@ -66,6 +68,7 @@ function applyGameState(state: GameSliceState, dto: GameStateDto) {
   state.minCardsThisTurn = dto.minCardsThisTurn;
   state.isExpertMode = dto.isExpertMode;
   state.finalScore = dto.finalScore;
+  state.canUndo = dto.canUndo;
   state.selectedCard = null;
   state.stagedPlays = [];
 }
@@ -95,6 +98,17 @@ export const playTurnAsync = createAsyncThunk(
         plays.map((p) => ({ card: p.card, slot: p.pileSlot })),
         token
       );
+    } catch (e: unknown) {
+      return rejectWithValue((e as Error).message);
+    }
+  }
+);
+
+export const undoMoveAsync = createAsyncThunk(
+  'game/undo',
+  async ({ sessionId, token }: { sessionId: string; token: string }, { rejectWithValue }) => {
+    try {
+      return await gameApi.undoMove(sessionId, token);
     } catch (e: unknown) {
       return rejectWithValue((e as Error).message);
     }
@@ -185,6 +199,21 @@ const gameSlice = createSlice({
         applyGameState(state, action.payload.state);
       })
       .addCase(playTurnAsync.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.payload as string;
+      });
+
+    // undoMove
+    builder
+      .addCase(undoMoveAsync.pending, (state) => {
+        state.status = 'loading';
+        state.error = null;
+      })
+      .addCase(undoMoveAsync.fulfilled, (state, action) => {
+        state.status = 'idle';
+        applyGameState(state, action.payload);
+      })
+      .addCase(undoMoveAsync.rejected, (state, action) => {
         state.status = 'failed';
         state.error = action.payload as string;
       });

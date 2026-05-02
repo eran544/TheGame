@@ -56,6 +56,17 @@ public class GameController : ControllerBase
         return result.Success ? Ok() : BadRequest(new { error = result.Error });
     }
 
+    [HttpPost("{sessionId:guid}/undo")]
+    public async Task<IActionResult> UndoLastMove(Guid sessionId)
+    {
+        var result = await _gameService.UndoLastMoveAsync(sessionId, GetUserId());
+        if (!result.Success) return BadRequest(new { error = result.Error });
+        var dto = MapState(result.Value!);
+        await _hub.Clients.Group(GameHub.GroupName(sessionId.ToString()))
+            .SendAsync("GameStateUpdated", dto);
+        return Ok(dto);
+    }
+
     private Guid GetUserId() =>
         Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
 
@@ -71,5 +82,6 @@ public class GameController : ControllerBase
         v.FinalScore is null ? null : new FinalScoreDto(
             v.FinalScore.CardsRemaining,
             v.FinalScore.IsPerfectGame,
-            v.FinalScore.Rating.ToString()));
+            v.FinalScore.Rating.ToString()),
+        v.CanUndo);
 }

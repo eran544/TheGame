@@ -20,6 +20,7 @@ public record GameStateDto(
     int PlayedCardsCount,
     IList<int> Hand,
     int MinCardsThisTurn,
-    FinalScoreDto? FinalScore);
+    FinalScoreDto? FinalScore,
+    bool CanUndo);
 
 public record TurnOutcomeDto(GameStateDto State, bool GameEnded, string? EndReason);

@@ -117,6 +117,19 @@ The system architecture consists of three main components:
 5. WHEN a player views the instructions THEN the system SHALL allow navigating between rule sections (e.g. next/previous)
 6. WHEN a player finishes reading the instructions THEN the system SHALL provide a button to return to the main menu
 
+#### Requirement 1.8: Undo Last Move
+
+**User Story:** As a single-player, I want to undo my last card play so that I can correct mistakes and reconsider my strategy.
+
+##### Acceptance Criteria
+
+1. WHEN playing in single-player mode THEN the system SHALL provide an undo action to revert the most recently played card
+2. WHEN the player triggers undo THEN the system SHALL return the last played card to the player's hand
+3. WHEN the player triggers undo THEN the system SHALL restore the affected pile to its value before that card was played
+4. WHEN the player triggers undo AND a replacement card was drawn after the play THEN the system SHALL return that replacement card to the top of the draw pile
+5. WHEN no card has been played yet in the game OR immediately after undo has been used THEN the system SHALL disable the undo action
+6. WHEN playing in multiplayer mode THEN the system SHALL NOT provide the undo option
+
 ### Phase 2: Multiplayer Online Implementation
 
 #### Requirement 2.1: Multiplayer Game Sessions
