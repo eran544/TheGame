@@ -11,6 +11,7 @@ import LobbyPage from './pages/LobbyPage';
 import MultiplayerGamePage from './pages/MultiplayerGamePage';
 import DashboardPage from './pages/DashboardPage';
 import InstructionsPage from './pages/InstructionsPage';
+import AdminPage from './pages/AdminPage';
 
 const App: React.FC = () => {
   return (
@@ -32,14 +33,7 @@ const App: React.FC = () => {
 
       {/* Admin routes */}
       <Route element={<AdminRoute />}>
-        <Route
-          path="/admin"
-          element={
-            <div style={{ padding: '2rem', color: 'var(--color-text)' }}>
-              Admin panel coming soon
-            </div>
-          }
-        />
+        <Route path="/admin" element={<AdminPage />} />
       </Route>
 
       {/* Catch-all */}

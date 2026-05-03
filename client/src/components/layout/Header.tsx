@@ -29,6 +29,11 @@ const Header: React.FC = () => {
           <span className={styles.username}>
             Playing as <strong>{user.username}</strong>
           </span>
+          {user.isAdmin && (
+            <Link to="/admin" className={styles.adminLink}>
+              Admin
+            </Link>
+          )}
           <Button
             variant="ghost"
             size="sm"

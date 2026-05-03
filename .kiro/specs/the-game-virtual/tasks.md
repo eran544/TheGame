@@ -196,17 +196,28 @@
   - Test message broadcasting
   - _Requirements: 2.4_
 
-- [ ] 14. Implement admin dashboard and management features
+- [x] 14. Implement admin dashboard and management features
   - Create admin-only UI components and routes
   - Build admin statistics dashboard
   - Implement user management functionality (create/delete/reset passwords)
   - Add game monitoring and intervention capabilities
-  - Create AI performance tracking and display
   - _Requirements: 2.5_
 
 ---
 
 ## Phase 3: AI Players and Disconnection Handling
+
+- [x]* 14.1 Write unit tests for admin dashboard and management
+  - Test dashboard stat counts (users, active games, completed games, chat violations)
+  - Test user listing (alphabetical order, stats population, admin flag)
+  - Test user creation (success, duplicate username, invalid password, admin user creation)
+  - Test user deletion (success, not found, cannot delete admin accounts)
+  - Test password reset (success, not found, invalid password)
+  - Test active game listing (only playing sessions, player count excludes spectators, player list)
+  - Test force-end game (success with admin_ended reason, not found, already ended)
+  - Test kick player (success, player not found, session ended, cannot kick AI)
+  - Test AdminController auth guard: all 8 endpoints return 403 for non-admin, 200 for admin
+  - _Requirements: 2.5_
 
 - [ ] 15. Build AI player integration system
   - Extend AI microservice for full AI player behavior

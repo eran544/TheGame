@@ -56,6 +56,7 @@ builder.Services.AddHttpClient("AiService", client =>
     client.Timeout = TimeSpan.FromSeconds(10);
 });
 builder.Services.AddScoped<IChatService, ChatService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddHostedService<AdminInitializer>();
 
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()
