@@ -45,6 +45,11 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<GameState>(e =>
         {
             e.HasOne(s => s.GameSession).WithOne(g => g.State).HasForeignKey<GameState>(s => s.GameSessionId);
+            e.OwnsMany(s => s.MoveHistory, m =>
+            {
+                m.ToJson();
+                m.OwnsMany(entry => entry.Plays);
+            });
         });
 
         modelBuilder.Entity<PlayerHand>(e =>

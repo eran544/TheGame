@@ -168,13 +168,13 @@
   - Build reconnection handling for temporary disconnects
   - _Requirements: 2.2_
 
-- [ ]* 11.1 Write integration tests for multiplayer functionality
+- [x]* 11.1 Write integration tests for multiplayer functionality
   - Test game session creation and joining
   - Test real-time state synchronization
   - Test disconnection handling
   - _Requirements: 2.1, 2.2, 2.3_
 
-- [ ] 12. Create Python AI microservice foundation
+- [x] 12. Create Python AI microservice foundation
   - Set up FastAPI project with OpenAI integration
   - Create API endpoints for message validation and AI moves
   - Implement basic message validation against communication rules
@@ -211,7 +211,7 @@
 - [ ] 15. Build AI player integration system
   - Extend AI microservice for full AI player behavior
   - Implement AI player hand management
-  - Create AI decision-making for card plays
+  - Create AI decision-making for card plays: call POST /ai-move on the Python service, passing the AI player's hand, current pile tops, drawPileCount, minCardsThisTurn, playedCards (computed as all cards not in any hand or draw pile), and moveHistory (from GameState.MoveHistory)
   - Add AI chat message generation
   - Integrate AI players into multiplayer games
   - _Requirements: 3.1, 3.3_

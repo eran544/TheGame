@@ -1,32 +1,31 @@
 """
 The Game AI Service
-FastAPI microservice for AI player behavior and message validation
+FastAPI microservice for AI player behaviour and message validation
 """
+
+import logging
+from datetime import datetime
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime
-import logging
 
-# Import configuration
 from config import config
+from game_models import AIMoveRequest, AIMoveResponse
+from ai_player import get_ai_move
 
-# Configure logging
 logging.basicConfig(
     level=getattr(logging, config.LOG_LEVEL),
-    format=config.LOG_FORMAT
+    format=config.LOG_FORMAT,
 )
 
 logger = logging.getLogger(__name__)
 
-# Create FastAPI app
 app = FastAPI(
     title="The Game AI Service",
     description="AI microservice for The Game virtual implementation",
-    version="1.0.0"
+    version="1.0.0",
 )
 
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:5000"],
@@ -35,41 +34,45 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/")
 async def root():
-    """Root endpoint"""
     return {"message": "The Game AI Service", "status": "running"}
+
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
-        "service": "ai-service"
+        "service": "ai-service",
     }
 
-# Placeholder endpoints for future implementation
+
+@app.post("/ai-move", response_model=AIMoveResponse)
+async def ai_move(request: AIMoveRequest) -> AIMoveResponse:
+    """Return an AI player's move for the given game state."""
+    return await get_ai_move(request)
+
+
 @app.post("/validate-message")
 async def validate_message():
-    """Validate chat message against game rules"""
-    return {"message": "Message validation endpoint - coming soon"}
+    """Validate chat message against game rules — coming in Task 13."""
+    return {"message": "Message validation endpoint — coming soon"}
 
-@app.post("/ai-move")
-async def get_ai_move():
-    """Get AI player's next move"""
-    return {"message": "AI move endpoint - coming soon"}
 
 @app.post("/ai-message")
 async def generate_ai_message():
-    """Generate AI chat message"""
-    return {"message": "AI message generation endpoint - coming soon"}
+    """Generate AI chat message — coming in Task 15."""
+    return {"message": "AI message generation endpoint — coming soon"}
+
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(
         "main:app",
         host=config.API_HOST,
         port=config.API_PORT,
-        reload=config.API_RELOAD
+        reload=config.API_RELOAD,
     )

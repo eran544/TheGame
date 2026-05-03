@@ -299,9 +299,15 @@ public class GameService : IGameService
             }
         }
 
+        var actingUsername = player.User?.Username ?? "Unknown";
+        state.MoveHistory.Add(new MoveHistoryEntry
+        {
+            PlayerUsername = actingUsername,
+            Plays = plays.Select(p => new MoveHistoryPlay { Card = p.Card, PileSlot = (int)p.Slot }).ToList()
+        });
+
         await _db.SaveChangesAsync();
 
-        var actingUsername = player.User?.Username ?? "Unknown";
         var lastMove = new LastMove(actingUsername,
             plays.Select(p => new LastMovePlay(p.Card, (int)p.Slot)).ToList());
 

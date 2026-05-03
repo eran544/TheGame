@@ -12,6 +12,7 @@ public class GameState
     public string DrawPileCards { get; set; } = "[]"; // JSON array
     public int PlayedCardsCount { get; set; } = 0;
     public string? UndoSnapshotJson { get; set; }
+    public List<MoveHistoryEntry> MoveHistory { get; set; } = new();
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     public GameSession GameSession { get; set; } = null!;
