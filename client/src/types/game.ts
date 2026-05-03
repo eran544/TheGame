@@ -42,6 +42,13 @@ export interface ChatMessage {
   sentAt: string;
 }
 
+export interface ChatSendResult {
+  isBlocked: boolean;
+  blockReason?: string;
+  violationCount: number;
+  message?: ChatMessage;
+}
+
 export interface StagedPlay {
   card: number;
   pileSlot: PileSlot;

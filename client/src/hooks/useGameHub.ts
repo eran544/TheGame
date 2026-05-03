@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { HubConnectionBuilder, HubConnection, LogLevel } from '@microsoft/signalr';
 import useAppDispatch from './useAppDispatch';
-import { applyGameStateFromHub, gameEndedFromHub, loadGameAsync } from '../store/slices/gameSlice';
+import { applyGameStateFromHub, gameEndedFromHub, loadGameAsync, addChatMessage } from '../store/slices/gameSlice';
 import type { GameStateDto } from '../store/slices/gameSlice';
+import type { ChatMessage } from '../types/game';
 
 const BASE_URL = import.meta.env.REACT_APP_API_BASE_URL ?? 'http://localhost:5001';
 
@@ -33,6 +34,10 @@ export function useGameHub(sessionId: string | null, token: string | null): void
         // Simple reason object — game ended due to disconnection or leave
         dispatch(gameEndedFromHub({ reason: payload.reason }));
       }
+    });
+
+    connection.on('ChatMessageReceived', (msg: ChatMessage) => {
+      dispatch(addChatMessage(msg));
     });
 
     // PlayerLeft during an active game is handled by GameEnded; during lobby

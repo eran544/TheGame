@@ -10,8 +10,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import config
+from pydantic import BaseModel
 from game_models import AIMoveRequest, AIMoveResponse
 from ai_player import get_ai_move
+from message_validator import validate_message as _validate_chat
 
 logging.basicConfig(
     level=getattr(logging, config.LOG_LEVEL),
@@ -55,10 +57,18 @@ async def ai_move(request: AIMoveRequest) -> AIMoveResponse:
     return await get_ai_move(request)
 
 
-@app.post("/validate-message")
-async def validate_message():
-    """Validate chat message against game rules — coming in Task 13."""
-    return {"message": "Message validation endpoint — coming soon"}
+class ValidateMessageRequest(BaseModel):
+    message: str
+
+class ValidateMessageResponse(BaseModel):
+    isAllowed: bool
+    reason: str
+
+@app.post("/validate-message", response_model=ValidateMessageResponse)
+async def validate_message(request: ValidateMessageRequest) -> ValidateMessageResponse:
+    """Validate a chat message against The Game communication rules."""
+    is_allowed, reason = await _validate_chat(request.message)
+    return ValidateMessageResponse(isAllowed=is_allowed, reason=reason)
 
 
 @app.post("/ai-message")

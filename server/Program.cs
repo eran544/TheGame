@@ -7,6 +7,7 @@ using StackExchange.Redis;
 using TheGameServer.Data;
 using TheGameServer.Hubs;
 using TheGameServer.Services;
+using TheGameServer.Services.Chat;
 using TheGameServer.Services.Game;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -49,6 +50,12 @@ builder.Services.AddSingleton<IGameEngine, GameEngine>();
 builder.Services.AddSingleton<IDeckShuffler, DeckShuffler>();
 builder.Services.AddScoped<IGameService, GameService>();
 builder.Services.AddScoped<IStatisticsService, StatisticsService>();
+builder.Services.AddHttpClient("AiService", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["AiService:BaseUrl"] ?? "http://localhost:8000");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddHostedService<AdminInitializer>();
 
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()

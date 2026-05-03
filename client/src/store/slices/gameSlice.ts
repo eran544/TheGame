@@ -1,7 +1,9 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import * as gameApi from '../../api/gameApi';
+import * as chatApi from '../../api/chatApi';
 import type {
   ChatMessage,
+  ChatSendResult,
   FinalScore,
   GamePhase,
   GameStateDto,
@@ -28,6 +30,7 @@ export interface GameSliceState {
   selectedCard: number | null;
   stagedPlays: StagedPlay[];
   gameMessages: ChatMessage[];
+  chatBlocked: { reason: string; violationCount: number } | null;
   finalScore: FinalScore | null;
   lastMove: LastMove | null;
   canUndo: boolean;
@@ -52,6 +55,7 @@ const initialState: GameSliceState = {
   selectedCard: null,
   stagedPlays: [],
   gameMessages: [],
+  chatBlocked: null,
   finalScore: null,
   lastMove: null,
   canUndo: false,
@@ -144,6 +148,31 @@ export const loadGameAsync = createAsyncThunk(
   }
 );
 
+export const sendChatMessageAsync = createAsyncThunk<
+  ChatSendResult,
+  { sessionId: string; message: string; token: string }
+>(
+  'game/sendChatMessage',
+  async ({ sessionId, message, token }, { rejectWithValue }) => {
+    try {
+      return await chatApi.sendMessage(sessionId, message, token);
+    } catch (e: unknown) {
+      return rejectWithValue((e as Error).message);
+    }
+  }
+);
+
+export const loadChatHistoryAsync = createAsyncThunk(
+  'game/loadChatHistory',
+  async ({ sessionId, token }: { sessionId: string; token: string }, { rejectWithValue }) => {
+    try {
+      return await chatApi.getChatHistory(sessionId, token);
+    } catch (e: unknown) {
+      return rejectWithValue((e as Error).message);
+    }
+  }
+);
+
 // ---------- slice ----------
 
 const gameSlice = createSlice({
@@ -189,7 +218,13 @@ const gameSlice = createSlice({
     },
 
     addChatMessage(state, action: PayloadAction<ChatMessage>) {
-      state.gameMessages.push(action.payload);
+      if (!state.gameMessages.some((m) => m.id === action.payload.id)) {
+        state.gameMessages.push(action.payload);
+      }
+    },
+
+    clearChatBlocked(state) {
+      state.chatBlocked = null;
     },
 
     clearGame() {
@@ -275,6 +310,31 @@ const gameSlice = createSlice({
         state.status = 'failed';
         state.error = action.payload as string;
       });
+
+    // sendChatMessage
+    builder
+      .addCase(sendChatMessageAsync.fulfilled, (state, action) => {
+        const result = action.payload;
+        if (result.isBlocked) {
+          state.chatBlocked = {
+            reason: result.blockReason ?? 'Message blocked',
+            violationCount: result.violationCount,
+          };
+        } else {
+          state.chatBlocked = null;
+          if (result.message) {
+            if (!state.gameMessages.some((m) => m.id === result.message!.id)) {
+              state.gameMessages.push(result.message);
+            }
+          }
+        }
+      });
+
+    // loadChatHistory
+    builder
+      .addCase(loadChatHistoryAsync.fulfilled, (state, action) => {
+        state.gameMessages = action.payload;
+      });
   },
 });
 
@@ -286,6 +346,7 @@ export const {
   applyGameStateFromHub,
   gameEndedFromHub,
   addChatMessage,
+  clearChatBlocked,
   clearGame,
   clearGameError,
 } = gameSlice.actions;

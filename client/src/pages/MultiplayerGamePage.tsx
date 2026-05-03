@@ -5,6 +5,7 @@ import GameBoard from '../components/game/GameBoard';
 import PlayerHand from '../components/game/PlayerHand';
 import GameStatus from '../components/game/GameStatus';
 import GameEndModal from '../components/game/GameEndModal';
+import ChatPanel from '../components/game/ChatPanel';
 import Button from '../components/ui/Button';
 import useAppDispatch from '../hooks/useAppDispatch';
 import useAppSelector from '../hooks/useAppSelector';
@@ -233,6 +234,10 @@ const MultiplayerGamePage: React.FC = () => {
             Leave
           </Button>
         </div>
+
+        {token && sessionId && (
+          <ChatPanel sessionId={sessionId} token={token} />
+        )}
       </div>
 
       {gamePhase === 'ended' && finalScore && (

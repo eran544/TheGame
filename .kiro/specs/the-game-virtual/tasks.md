@@ -182,7 +182,7 @@
   - Add error handling and fallback mechanisms
   - _Requirements: 5.2, 2.4_
 
-- [ ] 13. Build chat system with rule enforcement
+- [x] 13. Build chat system with rule enforcement
   - Create chat UI components in React client
   - Implement chat message API endpoints
   - Integrate AI message validation service
@@ -190,7 +190,7 @@
   - Create message blocking and warning system
   - _Requirements: 2.4_
 
-- [ ]* 13.1 Write unit tests for chat validation
+- [x]* 13.1 Write unit tests for chat validation
   - Test forbidden message detection
   - Test context-aware validation
   - Test message broadcasting
