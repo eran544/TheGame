@@ -36,3 +36,15 @@ class CardPlay(BaseModel):
 class AIMoveResponse(BaseModel):
     plays: List[CardPlay]
     source: str  # "claude" or "fallback"
+
+
+class AIMessageRequest(BaseModel):
+    playerUsername: str
+    hand: List[int]
+    piles: PilesState
+    drawPileCount: int
+    moveHistory: Optional[List[LastMove]] = None
+
+
+class AIMessageResponse(BaseModel):
+    message: str

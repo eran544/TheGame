@@ -32,7 +32,7 @@ export interface GameSliceState {
   gameMessages: ChatMessage[];
   chatBlocked: { reason: string; violationCount: number } | null;
   finalScore: FinalScore | null;
-  lastMove: LastMove | null;
+  recentMoves: LastMove[];
   canUndo: boolean;
   endReason: string | null;
   status: 'idle' | 'loading' | 'failed';
@@ -57,7 +57,7 @@ const initialState: GameSliceState = {
   gameMessages: [],
   chatBlocked: null,
   finalScore: null,
-  lastMove: null,
+  recentMoves: [],
   canUndo: false,
   endReason: null,
   status: 'idle',
@@ -75,7 +75,7 @@ function applyGameState(state: GameSliceState, dto: GameStateDto) {
   state.minCardsThisTurn = dto.minCardsThisTurn;
   state.isExpertMode = dto.isExpertMode;
   state.finalScore = dto.finalScore;
-  state.lastMove = dto.lastMove ?? null;
+  state.recentMoves = dto.recentMoves ?? [];
   state.canUndo = dto.canUndo;
   state.currentPlayerId = dto.currentPlayerId ?? null;
   state.players = dto.players ?? [];

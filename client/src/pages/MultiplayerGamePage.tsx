@@ -51,7 +51,7 @@ const MultiplayerGamePage: React.FC = () => {
     selectedCard,
     stagedPlays,
     finalScore,
-    lastMove,
+    recentMoves,
     isExpertMode,
     minCardsThisTurn,
     currentPlayerId,
@@ -179,13 +179,17 @@ const MultiplayerGamePage: React.FC = () => {
               : `${currentPlayerName}'s turn`}
         </div>
 
-        {lastMove && (
-          <div className={styles.lastMove}>
-            <span className={styles.lastMoveLabel}>{lastMove.playerUsername} played:</span>
-            {lastMove.plays.map((p, i) => (
-              <span key={i} className={styles.lastMoveTag}>
-                {p.card} → {p.pileSlot < 2 ? '↑' : '↓'}{p.pileSlot % 2 + 1}
-              </span>
+        {recentMoves.length > 0 && (
+          <div className={styles.recentMoves}>
+            {recentMoves.map((move, mi) => (
+              <div key={mi} className={styles.lastMove}>
+                <span className={styles.lastMoveLabel}>{move.playerUsername} played:</span>
+                {move.plays.map((p, pi) => (
+                  <span key={pi} className={styles.lastMoveTag}>
+                    {p.card} → {p.pileSlot < 2 ? '↑' : '↓'}{p.pileSlot % 2 + 1}
+                  </span>
+                ))}
+              </div>
             ))}
           </div>
         )}

@@ -1,4 +1,6 @@
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using TheGameServer.Data;
 using TheGameServer.Models;
@@ -20,6 +22,8 @@ public interface IGameService
     Task<GameResultEnvelope<GameStateView>> StartMultiplayerGameAsync(Guid sessionId, Guid userId);
     Task<GameResultEnvelope<LeaveResult>> LeaveGameAsync(Guid sessionId, Guid userId);
     Task<GameResultEnvelope<LobbyView>> GetLobbyStateAsync(Guid sessionId, Guid userId);
+    Task<GameResultEnvelope<LobbyView>> AddAIPlayerAsync(Guid sessionId, Guid userId);
+    Task<GameResultEnvelope<LobbyView>> RemoveAIPlayerAsync(Guid sessionId, Guid userId, Guid aiUserId);
 }
 
 public record LeaveResult(bool GameEnded);
@@ -43,7 +47,7 @@ public record GameStateView(
     bool CanUndo,
     Guid? CurrentPlayerId = null,
     IList<PlayerInGame>? Players = null,
-    LastMove? LastMove = null);
+    IList<LastMove>? RecentMoves = null);
 
 public record TurnOutcome(GameStateView State, bool GameEnded, string? EndReason);
 
@@ -65,12 +69,33 @@ public class GameService : IGameService
     private readonly AppDbContext _db;
     private readonly IGameEngine _engine;
     private readonly IDeckShuffler _shuffler;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ILogger<GameService> _logger;
 
-    public GameService(AppDbContext db, IGameEngine engine, IDeckShuffler shuffler)
+    private static readonly JsonSerializerOptions _camelCase = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+    };
+
+    private record AiServiceResponse(
+        [property: JsonPropertyName("plays")] List<AiServiceCardPlay> Plays,
+        [property: JsonPropertyName("source")] string Source);
+
+    private record AiServiceCardPlay(
+        [property: JsonPropertyName("card")] int Card,
+        [property: JsonPropertyName("pileSlot")] int PileSlot);
+
+    private record AiTurnResult(bool GameEnded, string? EndReason, GameScore? FinalScore, IList<LastMove> AIMoves);
+
+    public GameService(AppDbContext db, IGameEngine engine, IDeckShuffler shuffler,
+        IHttpClientFactory httpClientFactory, ILogger<GameService> logger)
     {
         _db = db;
         _engine = engine;
         _shuffler = shuffler;
+        _httpClientFactory = httpClientFactory;
+        _logger = logger;
     }
 
     // ── Single-player ───────────────────────────────────────────────────────
@@ -205,6 +230,7 @@ public class GameService : IGameService
         GameScore? finalScore = null;
         var gameEnded = false;
         string? endReason = null;
+        GamePlayer? nextPlayerForAI = null;
 
         if (isSinglePlayer)
         {
@@ -220,17 +246,16 @@ public class GameService : IGameService
             }
             else
             {
-                // Advance turn to next active player and check if they can play
                 var activePlayers = session.Players
                     .Where(p => !p.IsSpectator && p.DisconnectedAt == null)
                     .OrderBy(p => p.PlayerIndex)
                     .ToList();
                 var currentIdx = activePlayers.FindIndex(p => p.UserId == userId);
-                var nextPlayer = activePlayers[(currentIdx + 1) % activePlayers.Count];
-                state.CurrentPlayerId = nextPlayer.UserId;
+                nextPlayerForAI = activePlayers[(currentIdx + 1) % activePlayers.Count];
+                state.CurrentPlayerId = nextPlayerForAI.UserId;
 
-                var nextHand = nextPlayer.Hand is not null
-                    ? JsonSerializer.Deserialize<List<int>>(nextPlayer.Hand.Cards) ?? new()
+                var nextHand = nextPlayerForAI.Hand is not null
+                    ? JsonSerializer.Deserialize<List<int>>(nextPlayerForAI.Hand.Cards) ?? new()
                     : new List<int>();
                 var nextMin = GameRules.GetMinCardsPerTurn(drawPileEmpty: drawPile.Count == 0, session.IsExpertMode, session.MaxPlayers);
                 if (!_engine.CanPlayMinimumCards(nextHand, newPiles, nextMin))
@@ -240,7 +265,7 @@ public class GameService : IGameService
 
         if (gameEnded)
         {
-            endReason = perfectGame ? "completed" : "completed";
+            endReason = "completed";
             state.UndoSnapshotJson = null;
             session.GamePhase = "ended";
             session.EndedAt = DateTime.UtcNow;
@@ -308,11 +333,25 @@ public class GameService : IGameService
 
         await _db.SaveChangesAsync();
 
-        var lastMove = new LastMove(actingUsername,
+        var humanMove = new LastMove(actingUsername,
             plays.Select(p => new LastMovePlay(p.Card, (int)p.Slot)).ToList());
+        var recentMoves = isSinglePlayer ? null : new List<LastMove> { humanMove };
+
+        // After human's turn, execute any consecutive AI turns
+        if (!gameEnded && !isSinglePlayer && nextPlayerForAI?.IsAI == true)
+        {
+            var aiResult = await HandleAITurnsAsync(session, state, drawPile);
+            if (aiResult.GameEnded)
+            {
+                gameEnded = true;
+                endReason = aiResult.EndReason;
+                finalScore = aiResult.FinalScore;
+            }
+            recentMoves!.AddRange(aiResult.AIMoves);
+        }
 
         var allPlayers = BuildPlayersInGame(session, state, userId, newHand);
-        var view = BuildView(session, state, newHand, drawPile, finalScore, allPlayers, lastMove);
+        var view = BuildView(session, state, newHand, drawPile, finalScore, allPlayers, recentMoves);
         return GameResultEnvelope<TurnOutcome>.Ok(new TurnOutcome(view, gameEnded, endReason));
     }
 
@@ -331,7 +370,11 @@ public class GameService : IGameService
         }
 
         var allPlayers = BuildPlayersInGame(context.Session, context.State!, userId, context.Hand!);
-        var view = BuildView(context.Session, context.State!, context.Hand!, context.DrawPile!, finalScore, allPlayers);
+        var requestingUsername = context.Player!.User?.Username;
+        var recentMoves = context.Session.MaxPlayers > 1
+            ? ComputeRecentMoves(context.State!.MoveHistory, requestingUsername)
+            : null;
+        var view = BuildView(context.Session, context.State!, context.Hand!, context.DrawPile!, finalScore, allPlayers, recentMoves);
         return GameResultEnvelope<GameStateView>.Ok(view);
     }
 
@@ -542,6 +585,19 @@ public class GameService : IGameService
         var requestingHand = handsByPlayer[requestingPlayer.Id];
         var allPlayersView = BuildPlayersInGame(session, state, userId, requestingHand);
 
+        // If the first player is AI, trigger AI turns immediately
+        if (firstPlayer.IsAI)
+        {
+            var aiResult = await HandleAITurnsAsync(session, state, drawPile);
+            allPlayersView = BuildPlayersInGame(session, state, userId, requestingHand);
+            if (aiResult.GameEnded)
+            {
+                var view = BuildView(session, state, requestingHand, drawPile,
+                    aiResult.FinalScore, allPlayersView, aiResult.AIMoves);
+                return GameResultEnvelope<GameStateView>.Ok(view);
+            }
+        }
+
         return GameResultEnvelope<GameStateView>.Ok(BuildView(session, state, requestingHand, drawPile, null, allPlayersView));
     }
 
@@ -568,7 +624,8 @@ public class GameService : IGameService
             }
             else if (session.CreatedBy == userId)
             {
-                session.CreatedBy = remaining.OrderBy(p => p.PlayerIndex).First().UserId;
+                session.CreatedBy = remaining.Where(p => !p.IsAI).OrderBy(p => p.PlayerIndex).FirstOrDefault()?.UserId
+                    ?? remaining.OrderBy(p => p.PlayerIndex).First().UserId;
             }
             await _db.SaveChangesAsync();
             return GameResultEnvelope<LeaveResult>.Ok(new LeaveResult(false));
@@ -609,6 +666,322 @@ public class GameService : IGameService
         if (session.GamePhase != "lobby") return GameResultEnvelope<LobbyView>.Fail("Game is not in lobby phase");
 
         return GameResultEnvelope<LobbyView>.Ok(BuildLobbyView(session, session.Players.Select(p => (p, p.User!))));
+    }
+
+    public async Task<GameResultEnvelope<LobbyView>> AddAIPlayerAsync(Guid sessionId, Guid userId)
+    {
+        var session = await _db.GameSessions
+            .Include(s => s.Players).ThenInclude(p => p.User)
+            .SingleOrDefaultAsync(s => s.Id == sessionId);
+
+        if (session is null) return GameResultEnvelope<LobbyView>.Fail("Game session not found");
+        if (session.GamePhase != "lobby") return GameResultEnvelope<LobbyView>.Fail("Game has already started");
+        if (session.CreatedBy != userId) return GameResultEnvelope<LobbyView>.Fail("Only the host can add AI players");
+        if (session.Players.Count(p => !p.IsSpectator) >= session.MaxPlayers)
+            return GameResultEnvelope<LobbyView>.Fail("Game is full");
+
+        // Find an AI user not already in this session
+        var usedAiIds = session.Players.Where(p => p.IsAI).Select(p => p.UserId).ToHashSet();
+        var availableAiId = AiPlayerConstants.Ids.FirstOrDefault(id => !usedAiIds.Contains(id));
+        if (availableAiId == Guid.Empty)
+            return GameResultEnvelope<LobbyView>.Fail("No AI players available");
+
+        var aiUser = await _db.Users.SingleOrDefaultAsync(u => u.Id == availableAiId);
+        if (aiUser is null)
+            return GameResultEnvelope<LobbyView>.Fail("AI player account not initialized. Restart the server.");
+
+        var aiPlayer = new GamePlayer
+        {
+            GameSessionId = session.Id,
+            UserId = availableAiId,
+            PlayerIndex = session.Players.Count,
+            IsAI = true
+        };
+
+        _db.GamePlayers.Add(aiPlayer);
+        await _db.SaveChangesAsync();
+
+        aiPlayer.User = aiUser;
+        return GameResultEnvelope<LobbyView>.Ok(BuildLobbyView(session, session.Players.Select(p => (p, p.User!))));
+    }
+
+    public async Task<GameResultEnvelope<LobbyView>> RemoveAIPlayerAsync(Guid sessionId, Guid userId, Guid aiUserId)
+    {
+        var session = await _db.GameSessions
+            .Include(s => s.Players).ThenInclude(p => p.User)
+            .SingleOrDefaultAsync(s => s.Id == sessionId);
+
+        if (session is null) return GameResultEnvelope<LobbyView>.Fail("Game session not found");
+        if (session.GamePhase != "lobby") return GameResultEnvelope<LobbyView>.Fail("Game has already started");
+        if (session.CreatedBy != userId) return GameResultEnvelope<LobbyView>.Fail("Only the host can remove AI players");
+
+        var aiPlayer = session.Players.SingleOrDefault(p => p.UserId == aiUserId && p.IsAI);
+        if (aiPlayer is null) return GameResultEnvelope<LobbyView>.Fail("AI player not found in lobby");
+
+        _db.GamePlayers.Remove(aiPlayer);
+        await _db.SaveChangesAsync();
+
+        var remaining = session.Players.Where(p => p.Id != aiPlayer.Id);
+        return GameResultEnvelope<LobbyView>.Ok(BuildLobbyView(session, remaining.Select(p => (p, p.User!))));
+    }
+
+    // ── AI turn handling ────────────────────────────────────────────────────
+
+    private async Task<AiTurnResult> HandleAITurnsAsync(GameSession session, GameState state, List<int> drawPile)
+    {
+        var aiMoves = new List<LastMove>();
+
+        while (true)
+        {
+            var activePlayers = session.Players
+                .Where(p => !p.IsSpectator && p.DisconnectedAt == null)
+                .OrderBy(p => p.PlayerIndex)
+                .ToList();
+
+            var currentPlayer = activePlayers.SingleOrDefault(p => p.UserId == state.CurrentPlayerId);
+            if (currentPlayer is null || !currentPlayer.IsAI)
+                return new AiTurnResult(false, null, null, aiMoves);
+
+            var aiHand = currentPlayer.Hand is not null
+                ? JsonSerializer.Deserialize<List<int>>(currentPlayer.Hand.Cards) ?? []
+                : [];
+
+            var piles = new PileTops(state.AscendingPile1, state.AscendingPile2, state.DescendingPile1, state.DescendingPile2);
+            var minCards = GameRules.GetMinCardsPerTurn(drawPileEmpty: drawPile.Count == 0, session.IsExpertMode, session.MaxPlayers);
+
+            if (!_engine.CanPlayMinimumCards(aiHand, piles, minCards))
+            {
+                var score = await FinalizeMultiplayerGameAsync(session, state, drawPile, "completed");
+                await _db.SaveChangesAsync();
+                return new AiTurnResult(true, "completed", score, aiMoves);
+            }
+
+            // Get AI plays from service (or local greedy fallback)
+            var aiPlays = await CallAiServiceAsync(aiHand, piles, drawPile, minCards, state.MoveHistory, session);
+
+            var validation = _engine.ValidateTurn(aiPlays, aiHand, piles, minCards);
+            if (!validation.IsValid)
+            {
+                // AI service returned invalid plays; use local greedy
+                aiPlays = GreedyFallback(aiHand, piles, minCards);
+                validation = _engine.ValidateTurn(aiPlays, aiHand, piles, minCards);
+                if (!validation.IsValid)
+                {
+                    var score = await FinalizeMultiplayerGameAsync(session, state, drawPile, "completed");
+                    await _db.SaveChangesAsync();
+                    return new AiTurnResult(true, "completed", score, aiMoves);
+                }
+            }
+
+            var newAiHand = validation.ResultingHand.ToList();
+            var newPiles = validation.ResultingPiles;
+
+            var refillCount = drawPile.Count == 0 ? 0 : Math.Min(aiPlays.Count, drawPile.Count);
+            for (var i = 0; i < refillCount; i++)
+            {
+                newAiHand.Add(drawPile[0]);
+                drawPile.RemoveAt(0);
+            }
+
+            state.AscendingPile1 = newPiles.Ascending1;
+            state.AscendingPile2 = newPiles.Ascending2;
+            state.DescendingPile1 = newPiles.Descending1;
+            state.DescendingPile2 = newPiles.Descending2;
+            state.PlayedCardsCount += aiPlays.Count;
+            state.DrawPileCards = JsonSerializer.Serialize(drawPile);
+            state.UpdatedAt = DateTime.UtcNow;
+
+            currentPlayer.Hand!.Cards = JsonSerializer.Serialize(newAiHand);
+            currentPlayer.Hand.UpdatedAt = DateTime.UtcNow;
+
+            var aiUsername = currentPlayer.User?.Username ?? "AI";
+            state.MoveHistory.Add(new MoveHistoryEntry
+            {
+                PlayerUsername = aiUsername,
+                Plays = aiPlays.Select(p => new MoveHistoryPlay { Card = p.Card, PileSlot = (int)p.Slot }).ToList()
+            });
+
+            aiMoves.Add(new LastMove(aiUsername,
+                aiPlays.Select(p => new LastMovePlay(p.Card, (int)p.Slot)).ToList()));
+
+            bool perfectGame = newAiHand.Count == 0 && drawPile.Count == 0
+                && activePlayers.Where(p => p.UserId != currentPlayer.UserId)
+                    .All(p => (JsonSerializer.Deserialize<List<int>>(p.Hand?.Cards ?? "[]") ?? []).Count == 0);
+
+            if (perfectGame)
+            {
+                var score = await FinalizeMultiplayerGameAsync(session, state, drawPile, "completed");
+                await _db.SaveChangesAsync();
+                return new AiTurnResult(true, "completed", score, aiMoves);
+            }
+
+            // Advance to next player
+            var currentIdx = activePlayers.FindIndex(p => p.UserId == currentPlayer.UserId);
+            var nextPlayer = activePlayers[(currentIdx + 1) % activePlayers.Count];
+            state.CurrentPlayerId = nextPlayer.UserId;
+
+            var nextHand = nextPlayer.Hand is not null
+                ? JsonSerializer.Deserialize<List<int>>(nextPlayer.Hand.Cards) ?? []
+                : [];
+            var updatedPiles = new PileTops(state.AscendingPile1, state.AscendingPile2, state.DescendingPile1, state.DescendingPile2);
+            var nextMin = GameRules.GetMinCardsPerTurn(drawPileEmpty: drawPile.Count == 0, session.IsExpertMode, session.MaxPlayers);
+
+            if (!_engine.CanPlayMinimumCards(nextHand, updatedPiles, nextMin))
+            {
+                var score = await FinalizeMultiplayerGameAsync(session, state, drawPile, "completed");
+                await _db.SaveChangesAsync();
+                return new AiTurnResult(true, "completed", score, aiMoves);
+            }
+
+            await _db.SaveChangesAsync();
+
+            if (!nextPlayer.IsAI)
+                return new AiTurnResult(false, null, null, aiMoves);
+        }
+    }
+
+    private async Task<List<CardPlay>> CallAiServiceAsync(
+        IList<int> hand, PileTops piles, List<int> drawPile, int minCards,
+        List<MoveHistoryEntry> moveHistory, GameSession session)
+    {
+        try
+        {
+            // playedCards = all card values not in any hand and not in draw pile
+            var inPlay = session.Players
+                .Where(p => !p.IsSpectator)
+                .SelectMany(p => p.Hand is not null
+                    ? (IEnumerable<int>)(JsonSerializer.Deserialize<List<int>>(p.Hand.Cards) ?? [])
+                    : Array.Empty<int>())
+                .Union(drawPile)
+                .ToHashSet();
+
+            var playedCards = Enumerable.Range(CardDeck.MinCardValue, CardDeck.TotalCards)
+                .Where(c => !inPlay.Contains(c))
+                .ToList();
+
+            var requestBody = new
+            {
+                hand,
+                piles = new
+                {
+                    ascending1 = piles.Ascending1,
+                    ascending2 = piles.Ascending2,
+                    descending1 = piles.Descending1,
+                    descending2 = piles.Descending2
+                },
+                drawPileCount = drawPile.Count,
+                minCardsThisTurn = minCards,
+                playedCards,
+                moveHistory = moveHistory.Select(m => new
+                {
+                    playerUsername = m.PlayerUsername,
+                    plays = m.Plays.Select(p => new { card = p.Card, pileSlot = p.PileSlot })
+                })
+            };
+
+            var json = JsonSerializer.Serialize(requestBody, _camelCase);
+            var client = _httpClientFactory.CreateClient("AiService");
+            var response = await client.PostAsync("/ai-move",
+                new StringContent(json, Encoding.UTF8, "application/json"));
+            response.EnsureSuccessStatusCode();
+
+            var responseJson = await response.Content.ReadAsStringAsync();
+            var aiResponse = JsonSerializer.Deserialize<AiServiceResponse>(responseJson, _camelCase);
+
+            if (aiResponse?.Plays is { Count: > 0 })
+                return aiResponse.Plays.Select(p => new CardPlay(p.Card, (PileSlot)p.PileSlot)).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "AI service call failed, using local greedy fallback");
+        }
+
+        return GreedyFallback(hand, piles, minCards);
+    }
+
+    private static List<CardPlay> GreedyFallback(IList<int> hand, PileTops piles, int minCards)
+    {
+        var plays = new List<CardPlay>();
+        var remaining = hand.ToList();
+        var currentPiles = piles;
+
+        while (plays.Count < minCards && remaining.Count > 0)
+        {
+            CardPlay? best = null;
+            int bestDelta = int.MaxValue;
+
+            foreach (var card in remaining)
+            {
+                foreach (var slot in Enum.GetValues<PileSlot>())
+                {
+                    var top = currentPiles.GetTop(slot);
+                    bool isAsc = slot.Direction() == PileDirection.Ascending;
+                    bool isBackwards = isAsc
+                        ? card == top - GameRules.BackwardsTrickDelta
+                        : card == top + GameRules.BackwardsTrickDelta;
+                    bool isForward = isAsc ? card > top : card < top;
+
+                    if (!isBackwards && !isForward) continue;
+
+                    int delta = isBackwards ? 0 : Math.Abs(card - top);
+                    if (delta < bestDelta)
+                    {
+                        bestDelta = delta;
+                        best = new CardPlay(card, slot);
+                    }
+                }
+            }
+
+            if (best is null) break;
+            plays.Add(best);
+            remaining.Remove(best.Card);
+            currentPiles = currentPiles.With(best.Slot, best.Card);
+        }
+
+        return plays;
+    }
+
+    private async Task<GameScore> FinalizeMultiplayerGameAsync(
+        GameSession session, GameState state, List<int> drawPile, string endReason)
+    {
+        state.UndoSnapshotJson = null;
+        session.GamePhase = "ended";
+        session.EndedAt = DateTime.UtcNow;
+
+        var durationMinutes = session.StartedAt is null ? (int?)null
+            : (int)Math.Round((session.EndedAt!.Value - session.StartedAt.Value).TotalMinutes);
+
+        var totalCardsRemaining = session.Players
+            .Where(p => !p.IsSpectator)
+            .Sum(p => (JsonSerializer.Deserialize<List<int>>(p.Hand?.Cards ?? "[]") ?? []).Count)
+            + drawPile.Count;
+
+        var finalScore = _engine.CalculateScore(totalCardsRemaining);
+
+        var result = new GameResult
+        {
+            GameSessionId = session.Id,
+            TotalCardsRemaining = totalCardsRemaining,
+            IsPerfectGame = finalScore.IsPerfectGame,
+            GameDurationMinutes = durationMinutes,
+            EndReason = endReason
+        };
+        _db.GameResults.Add(result);
+
+        foreach (var mp in session.Players.Where(p => !p.IsAI && !p.IsSpectator))
+        {
+            var mpHandCount = (JsonSerializer.Deserialize<List<int>>(mp.Hand?.Cards ?? "[]") ?? []).Count;
+            _db.PlayerGameStats.Add(new PlayerGameStat
+            {
+                GameResultId = result.Id,
+                UserId = mp.UserId,
+                CardsInHand = mpHandCount,
+                PlayTimeMinutes = durationMinutes
+            });
+            await UpdatePlayerStatisticsAsync(mp.UserId, finalScore, durationMinutes);
+        }
+
+        return finalScore;
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
@@ -676,7 +1049,7 @@ public class GameService : IGameService
                     : (p.Hand is not null ? (JsonSerializer.Deserialize<List<int>>(p.Hand.Cards)?.Count ?? 0) : 0);
                 return new PlayerInGame(
                     UserId: p.UserId,
-                    Username: p.User?.Username ?? "Unknown",
+                    Username: p.User?.Username ?? "AI",
                     HandCount: handCount,
                     IsAI: p.IsAI,
                     IsCurrentTurn: state.CurrentPlayerId == p.UserId,
@@ -709,7 +1082,7 @@ public class GameService : IGameService
         IList<int> drawPile,
         GameScore? finalScore,
         IList<PlayerInGame>? players = null,
-        LastMove? lastMove = null)
+        IList<LastMove>? recentMoves = null)
     {
         var minCards = GameRules.GetMinCardsPerTurn(drawPileEmpty: drawPile.Count == 0, session.IsExpertMode, session.MaxPlayers);
         var piles = new PileTops(state.AscendingPile1, state.AscendingPile2, state.DescendingPile1, state.DescendingPile2);
@@ -727,7 +1100,32 @@ public class GameService : IGameService
             CanUndo: state.UndoSnapshotJson is not null,
             CurrentPlayerId: state.CurrentPlayerId,
             Players: players,
-            LastMove: lastMove);
+            RecentMoves: recentMoves);
+    }
+
+    private static IList<LastMove> ComputeRecentMoves(List<MoveHistoryEntry> history, string? requestingUsername)
+    {
+        if (history.Count == 0) return [];
+
+        int lastOwnIndex = -1;
+        if (!string.IsNullOrEmpty(requestingUsername))
+        {
+            for (int i = history.Count - 1; i >= 0; i--)
+            {
+                if (history[i].PlayerUsername == requestingUsername)
+                {
+                    lastOwnIndex = i;
+                    break;
+                }
+            }
+        }
+
+        return history
+            .Skip(lastOwnIndex + 1)
+            .Select(m => new LastMove(
+                m.PlayerUsername,
+                m.Plays.Select(p => new LastMovePlay(p.Card, p.PileSlot)).ToList()))
+            .ToList();
     }
 
     private record GameContext(

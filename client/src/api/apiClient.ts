@@ -60,5 +60,13 @@ export async function post<T>(
   return handleResponse<T>(response);
 }
 
-const apiClient = { get, post };
+export async function del<T>(path: string, token?: string): Promise<T> {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: 'DELETE',
+    headers: buildHeaders(token),
+  });
+  return handleResponse<T>(response);
+}
+
+const apiClient = { get, post, delete: del };
 export default apiClient;

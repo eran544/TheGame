@@ -8,6 +8,8 @@ import { useLobbyHub } from '../hooks/useLobbyHub';
 import {
   fetchLobbyStateAsync,
   leaveGameAsync,
+  addAIPlayerAsync,
+  removeAIPlayerAsync,
   clearLobby,
 } from '../store/slices/lobbySlice';
 import * as gameApi from '../api/gameApi';
@@ -31,7 +33,6 @@ const LobbyPage: React.FC = () => {
   };
 
   useLobbyHub(sessionId ?? null, token, () => {
-    // When GameStarted fires, navigate to the multiplayer game
     if (sessionId) navigate(`/game/${sessionId}`);
   });
 
@@ -54,7 +55,19 @@ const LobbyPage: React.FC = () => {
     navigate('/');
   };
 
+  const handleAddAI = () => {
+    if (!token || !sessionId) return;
+    dispatch(addAIPlayerAsync({ sessionId, token }));
+  };
+
+  const handleRemoveAI = (aiUserId: string) => {
+    if (!token || !sessionId) return;
+    dispatch(removeAIPlayerAsync({ sessionId, aiUserId, token }));
+  };
+
   const isCreator = user?.id === createdBy;
+  const isFull = players.length >= maxPlayers;
+  const hasAIPlayers = players.some((p) => p.isAI);
 
   return (
     <Layout showHeader>
@@ -87,8 +100,19 @@ const LobbyPage: React.FC = () => {
             <div key={p.userId} className={styles.playerRow}>
               <span className={styles.playerIndex}>{i + 1}</span>
               <span className={styles.playerName}>{p.username}</span>
-              {p.userId === createdBy && (
+              {p.isAI && <span className={styles.aiBadge}>AI</span>}
+              {p.userId === createdBy && !p.isAI && (
                 <span className={styles.hostBadge}>host</span>
+              )}
+              {isCreator && p.isAI && (
+                <button
+                  className={styles.removeAIBtn}
+                  onClick={() => handleRemoveAI(p.userId)}
+                  disabled={status === 'loading'}
+                  title="Remove AI player"
+                >
+                  ✕
+                </button>
               )}
             </div>
           ))}
@@ -101,6 +125,16 @@ const LobbyPage: React.FC = () => {
         </div>
 
         <div className={styles.actions}>
+          {isCreator && !isFull && (
+            <Button
+              variant="secondary"
+              fullWidth
+              onClick={handleAddAI}
+              disabled={status === 'loading'}
+            >
+              + Add AI Player
+            </Button>
+          )}
           {isCreator && (
             <Button
               variant="primary"
@@ -118,6 +152,12 @@ const LobbyPage: React.FC = () => {
             Leave
           </Button>
         </div>
+
+        {hasAIPlayers && (
+          <p className={styles.aiNote}>
+            AI players will take their turns automatically using Claude.
+          </p>
+        )}
       </div>
     </Layout>
   );

@@ -105,7 +105,14 @@
   padding: 0.4rem 0;
 }
 
-/* ── Last move ── */
+/* ── Recent moves ── */
+.recentMoves {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  width: 100%;
+}
+
 .lastMove {
   display: flex;
   flex-wrap: wrap;

@@ -10,6 +10,19 @@ public class AdminSettings
     public string Password { get; set; } = string.Empty;
 }
 
+public static class AiPlayerConstants
+{
+    public static readonly (Guid Id, string Username)[] AiUsers =
+    [
+        (new Guid("00000000-0000-0000-0001-000000000001"), "AI Player 1"),
+        (new Guid("00000000-0000-0000-0001-000000000002"), "AI Player 2"),
+        (new Guid("00000000-0000-0000-0001-000000000003"), "AI Player 3"),
+        (new Guid("00000000-0000-0000-0001-000000000004"), "AI Player 4"),
+    ];
+
+    public static readonly Guid[] Ids = AiUsers.Select(u => u.Id).ToArray();
+}
+
 public class AdminInitializer : IHostedService
 {
     private readonly IServiceProvider _services;
@@ -25,16 +38,23 @@ public class AdminInitializer : IHostedService
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        using var scope = _services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        await db.Database.MigrateAsync(cancellationToken);
+        await SeedAdminAsync(db, cancellationToken);
+        await SeedAIPlayersAsync(db, cancellationToken);
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    private async Task SeedAdminAsync(AppDbContext db, CancellationToken cancellationToken)
+    {
         if (string.IsNullOrEmpty(_settings.Password))
         {
             _logger.LogWarning("AdminSettings:Password is not configured - skipping super admin initialization");
             return;
         }
-
-        using var scope = _services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        await db.Database.MigrateAsync(cancellationToken);
 
         var exists = await db.Users.AnyAsync(u => u.Username == _settings.Username, cancellationToken);
         if (exists)
@@ -57,5 +77,26 @@ public class AdminInitializer : IHostedService
         _logger.LogInformation("Super admin '{Username}' created", _settings.Username);
     }
 
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    private async Task SeedAIPlayersAsync(AppDbContext db, CancellationToken cancellationToken)
+    {
+        bool any = false;
+        foreach (var (id, username) in AiPlayerConstants.AiUsers)
+        {
+            if (!await db.Users.AnyAsync(u => u.Id == id, cancellationToken))
+            {
+                db.Users.Add(new User
+                {
+                    Id = id,
+                    Username = username,
+                    PasswordHash = "*",
+                    IsAI = true,
+                });
+                _logger.LogInformation("AI user '{Username}' created", username);
+                any = true;
+            }
+        }
+
+        if (any)
+            await db.SaveChangesAsync(cancellationToken);
+    }
 }

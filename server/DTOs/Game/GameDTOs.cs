@@ -20,7 +20,7 @@ public record GameStateDto(
     bool CanUndo,
     Guid? CurrentPlayerId = null,
     IList<PlayerInGameDto>? Players = null,
-    LastMoveDto? LastMove = null);
+    IList<LastMoveDto>? RecentMoves = null);
 
 public record TurnOutcomeDto(GameStateDto State, bool GameEnded, string? EndReason);
 

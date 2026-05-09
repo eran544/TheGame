@@ -11,8 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import config
 from pydantic import BaseModel
-from game_models import AIMoveRequest, AIMoveResponse
-from ai_player import get_ai_move
+from game_models import AIMoveRequest, AIMoveResponse, AIMessageRequest, AIMessageResponse
+from ai_player import get_ai_move, get_ai_message
 from message_validator import validate_message as _validate_chat
 
 logging.basicConfig(
@@ -71,10 +71,10 @@ async def validate_message(request: ValidateMessageRequest) -> ValidateMessageRe
     return ValidateMessageResponse(isAllowed=is_allowed, reason=reason)
 
 
-@app.post("/ai-message")
-async def generate_ai_message():
-    """Generate AI chat message — coming in Task 15."""
-    return {"message": "AI message generation endpoint — coming soon"}
+@app.post("/ai-message", response_model=AIMessageResponse)
+async def generate_ai_message(request: AIMessageRequest) -> AIMessageResponse:
+    """Generate a cooperative chat message for an AI player."""
+    return await get_ai_message(request)
 
 
 if __name__ == "__main__":

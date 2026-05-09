@@ -90,7 +90,7 @@ export interface GameStateDto {
   canUndo: boolean;
   currentPlayerId?: string;
   players?: PlayerInGame[];
-  lastMove?: LastMove;
+  recentMoves?: LastMove[];
 }
 
 export interface TurnOutcomeDto {

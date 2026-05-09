@@ -203,9 +203,6 @@
   - Add game monitoring and intervention capabilities
   - _Requirements: 2.5_
 
----
-
-## Phase 3: AI Players and Disconnection Handling
 
 - [x]* 14.1 Write unit tests for admin dashboard and management
   - Test dashboard stat counts (users, active games, completed games, chat violations)
@@ -219,7 +216,11 @@
   - Test AdminController auth guard: all 8 endpoints return 403 for non-admin, 200 for admin
   - _Requirements: 2.5_
 
-- [ ] 15. Build AI player integration system
+  ---
+
+## Phase 3: AI Players and Disconnection Handling
+
+- [x] 15. Build AI player integration system
   - Extend AI microservice for full AI player behavior
   - Implement AI player hand management
   - Create AI decision-making for card plays: call POST /ai-move on the Python service, passing the AI player's hand, current pile tops, drawPileCount, minCardsThisTurn, playedCards (computed as all cards not in any hand or draw pile), and moveHistory (from GameState.MoveHistory)

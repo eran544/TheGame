@@ -1,4 +1,4 @@
-import apiClient from './apiClient';
+import apiClient, { del } from './apiClient';
 import type { GameStateDto, LobbyStateDto, TurnOutcomeDto } from '../types/game';
 
 // ── Single-player ──────────────────────────────────────────────────────────
@@ -47,4 +47,12 @@ export function getLobbyState(sessionId: string, token: string) {
 
 export function startMultiplayerGame(sessionId: string, token: string) {
   return apiClient.post<GameStateDto>(`/api/game/${sessionId}/multiplayer/start`, {}, token);
+}
+
+export function addAIPlayer(sessionId: string, token: string) {
+  return apiClient.post<LobbyStateDto>(`/api/game/${sessionId}/add-ai`, {}, token);
+}
+
+export function removeAIPlayer(sessionId: string, aiUserId: string, token: string) {
+  return del<LobbyStateDto>(`/api/game/${sessionId}/remove-ai/${aiUserId}`, token);
 }

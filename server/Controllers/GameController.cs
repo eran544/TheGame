@@ -124,6 +124,28 @@ public class GameController : ControllerBase
         return Ok(dto);
     }
 
+    [HttpPost("{sessionId:guid}/add-ai")]
+    public async Task<IActionResult> AddAIPlayer(Guid sessionId)
+    {
+        var result = await _gameService.AddAIPlayerAsync(sessionId, GetUserId());
+        if (!result.Success) return BadRequest(new { error = result.Error });
+        var dto = MapLobby(result.Value!);
+        await _hub.Clients.Group(GameHub.GroupName(sessionId.ToString()))
+            .SendAsync("LobbyUpdated", dto);
+        return Ok(dto);
+    }
+
+    [HttpDelete("{sessionId:guid}/remove-ai/{aiUserId:guid}")]
+    public async Task<IActionResult> RemoveAIPlayer(Guid sessionId, Guid aiUserId)
+    {
+        var result = await _gameService.RemoveAIPlayerAsync(sessionId, GetUserId(), aiUserId);
+        if (!result.Success) return BadRequest(new { error = result.Error });
+        var dto = MapLobby(result.Value!);
+        await _hub.Clients.Group(GameHub.GroupName(sessionId.ToString()))
+            .SendAsync("LobbyUpdated", dto);
+        return Ok(dto);
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────────
 
     private Guid GetUserId() =>
@@ -145,9 +167,9 @@ public class GameController : ControllerBase
         v.CanUndo,
         v.CurrentPlayerId,
         v.Players?.Select(p => new PlayerInGameDto(p.UserId, p.Username, p.HandCount, p.IsAI, p.IsCurrentTurn, p.IsDisconnected)).ToList(),
-        v.LastMove is null ? null : new LastMoveDto(
-            v.LastMove.PlayerUsername,
-            v.LastMove.Plays.Select(p => new LastMovePlayDto(p.Card, p.PileSlot)).ToList()));
+        v.RecentMoves?.Select(m => new LastMoveDto(
+            m.PlayerUsername,
+            m.Plays.Select(p => new LastMovePlayDto(p.Card, p.PileSlot)).ToList())).ToList());
 
     private static LobbyStateDto MapLobby(LobbyView v) => new(
         v.SessionId,

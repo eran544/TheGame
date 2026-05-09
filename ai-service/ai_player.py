@@ -5,7 +5,7 @@ from typing import Any
 import anthropic
 
 from config import config
-from game_models import AIMoveRequest, AIMoveResponse, CardPlay
+from game_models import AIMoveRequest, AIMoveResponse, AIMessageRequest, AIMessageResponse, CardPlay
 from game_rules import greedy_fallback, validate_plays
 
 logger = logging.getLogger(__name__)
@@ -156,3 +156,119 @@ async def get_ai_move(req: AIMoveRequest) -> AIMoveResponse:
     )
     logger.info("Greedy fallback chose %d play(s)", len(plays))
     return AIMoveResponse(plays=plays, source="fallback")
+
+
+_MESSAGE_SYSTEM_PROMPT = """\
+You are an AI player in The Game — a fully cooperative card game. Generate a single short \
+chat message (under 15 words) to send to your teammates. You MUST NOT reveal specific card \
+or pile values. Follow these communication rules strictly:
+
+ALLOWED:
+- General encouragement or status: "We've got this!", "I'm in a tight spot"
+- Vague strategic hints: "Things are looking up", "I think I just helped us"
+- Negotiating pile access without numbers: "Please leave the first ascending pile for me if \
+  you can", "I really need the second descending pile", "Can someone else handle the \
+  ascending piles? I'll focus on descending"
+- Responding to a teammate's prior request: "Got it, I'll stay off that pile", \
+  "I'll try to leave that one for you"
+- Apologising when forced to override a teammate's request: \
+  "Sorry, I had no choice but to play there", "Apologies — I was completely forced to touch \
+  that pile", "Had to play there, no other option — sorry"
+
+NOT ALLOWED:
+- Specific numbers: "I have a 47", "The pile is at 62", "I need to play 35"
+- Any phrasing that directly reveals a card value
+
+CONTEXT CUES — look at the move history to decide what to say:
+- If a teammate recently played heavily on a pile you also need, consider negotiating
+- If you just took a pile a teammate likely needs, apologise
+- If you used a backwards trick, you can hint that you helped without stating the value
+- If the draw pile is empty or nearly empty, signal urgency
+- If you are about to run out of good moves, warn the team vaguely
+- If a teammate's last message (in history) asked for something, acknowledge it
+
+Generate ONLY the message text, no quotes, no extra text.\
+"""
+
+
+_FALLBACK_MESSAGES = [
+    "We've got this!",
+    "I'm in a tight spot...",
+    "Things are looking up!",
+    "Trust the process, team!",
+    "Hmm, need to think carefully here.",
+    "I can help with the ascending piles!",
+    "Please leave the second ascending pile for me if possible.",
+    "I really need one of the descending piles.",
+    "Can someone else cover the ascending side? I'll take descending.",
+    "Hang in there everyone!",
+    "Sorry, had to touch that pile — absolutely no other option.",
+    "Apologies, I was forced to play there.",
+    "Had to play there, no other option — sorry!",
+    "I think I just gave us a bit of breathing room.",
+    "That was tight but we're still in it.",
+    "Feeling okay about where we are.",
+    "I'm running low on good options, heads up.",
+    "Getting tricky over here — watch those piles.",
+    "Don't worry about that pile for now, I've got it.",
+    "Can anyone cover the first ascending pile? I need to focus elsewhere.",
+]
+
+
+async def get_ai_message(req: AIMessageRequest) -> AIMessageResponse:
+    """Generate a cooperative chat message for an AI player."""
+    import random
+
+    piles_summary = (
+        f"ascending piles: {req.piles.ascending1} and {req.piles.ascending2}, "
+        f"descending piles: {req.piles.descending1} and {req.piles.descending2}, "
+        f"draw pile: {req.drawPileCount} cards, "
+        f"my hand: {len(req.hand)} cards"
+    )
+
+    history_summary = ""
+    if req.moveHistory:
+        last_moves = req.moveHistory[-4:]
+        history_summary = " Recent moves: " + "; ".join(
+            f"{m.playerUsername} played {len(m.plays)} card(s) on "
+            + ", ".join(
+                ["asc1", "asc2", "desc1", "desc2"][p.pileSlot]
+                for p in m.plays
+            )
+            for m in last_moves
+        )
+
+    try:
+        response = _client.messages.create(
+            model=config.ANTHROPIC_MODEL,
+            max_tokens=64,
+            system=[
+                {
+                    "type": "text",
+                    "text": _MESSAGE_SYSTEM_PROMPT,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
+            messages=[
+                {
+                    "role": "user",
+                    "content": (
+                        f"I am {req.playerUsername}. "
+                        f"State: {piles_summary}.{history_summary} "
+                        "What should I say to my teammates?"
+                    ),
+                }
+            ],
+        )
+
+        for block in response.content:
+            if hasattr(block, "text") and block.text:
+                message = block.text.strip().strip('"').strip("'")
+                if message:
+                    logger.info("AI message generated by Claude")
+                    return AIMessageResponse(message=message)
+
+    except Exception:
+        logger.exception("Claude API error generating message — using fallback")
+
+    return AIMessageResponse(message=random.choice(_FALLBACK_MESSAGES))

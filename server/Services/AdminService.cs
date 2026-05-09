@@ -30,7 +30,7 @@ public class AdminService : IAdminService
 
     public async Task<AdminDashboardDto> GetDashboardStatsAsync()
     {
-        var totalUsers = await _db.Users.CountAsync();
+        var totalUsers = await _db.Users.CountAsync(u => !u.IsAI);
         var activeGames = await _db.GameSessions.CountAsync(s => s.GamePhase == "playing");
         var totalCompleted = await _db.GameSessions.CountAsync(s => s.GamePhase == "ended");
         var totalViolations = await _db.ChatMessages.CountAsync(m => !m.IsValidated);
@@ -42,6 +42,7 @@ public class AdminService : IAdminService
     {
         var users = await _db.Users
             .Include(u => u.Statistics)
+            .Where(u => !u.IsAI)
             .OrderBy(u => u.Username)
             .ToListAsync();
 

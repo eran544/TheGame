@@ -87,6 +87,31 @@ export const fetchLobbyStateAsync = createAsyncThunk(
   }
 );
 
+export const addAIPlayerAsync = createAsyncThunk(
+  'lobby/addAI',
+  async ({ sessionId, token }: { sessionId: string; token: string }, { rejectWithValue }) => {
+    try {
+      return await gameApi.addAIPlayer(sessionId, token);
+    } catch (e: unknown) {
+      return rejectWithValue((e as Error).message);
+    }
+  }
+);
+
+export const removeAIPlayerAsync = createAsyncThunk(
+  'lobby/removeAI',
+  async (
+    { sessionId, aiUserId, token }: { sessionId: string; aiUserId: string; token: string },
+    { rejectWithValue }
+  ) => {
+    try {
+      return await gameApi.removeAIPlayer(sessionId, aiUserId, token);
+    } catch (e: unknown) {
+      return rejectWithValue((e as Error).message);
+    }
+  }
+);
+
 // ---------- slice ----------
 
 const lobbySlice = createSlice({
@@ -146,6 +171,22 @@ const lobbySlice = createSlice({
         applyLobbyState(state, action.payload);
       })
       .addCase(fetchLobbyStateAsync.rejected, failed);
+
+    builder
+      .addCase(addAIPlayerAsync.pending, pending)
+      .addCase(addAIPlayerAsync.fulfilled, (state, action) => {
+        state.status = 'idle';
+        applyLobbyState(state, action.payload);
+      })
+      .addCase(addAIPlayerAsync.rejected, failed);
+
+    builder
+      .addCase(removeAIPlayerAsync.pending, pending)
+      .addCase(removeAIPlayerAsync.fulfilled, (state, action) => {
+        state.status = 'idle';
+        applyLobbyState(state, action.payload);
+      })
+      .addCase(removeAIPlayerAsync.rejected, failed);
   },
 });
 
