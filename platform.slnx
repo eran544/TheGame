@@ -3,6 +3,9 @@
   <Folder Name="/services/auth/">
     <Project Path="services/auth/AuthServer.csproj" />
   </Folder>
+  <Folder Name="/services/flip7/">
+    <Project Path="services/flip7/Flip7Server.csproj" />
+  </Folder>
   <Folder Name="/services/the-game.tests/">
     <Project Path="services/the-game.tests/TheGameServer.Tests.csproj" />
   </Folder>
