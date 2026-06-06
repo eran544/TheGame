@@ -993,8 +993,11 @@ public class GameService : IGameService
                 return new AiTurnResult(true, "completed", score, aiMoves);
             }
 
-            // Get AI plays from service (or local greedy fallback)
-            var aiPlays = await CallAiServiceAsync(aiHand, piles, drawPile, minCards, state.MoveHistory, session);
+            // Get AI plays from service (or local greedy fallback), using this
+            // AI account's configured play style and difficulty.
+            var (aiStyle, aiDifficulty) = AiPlayerConstants.GetProfile(currentPlayer.UserId);
+            var aiPlays = await CallAiServiceAsync(
+                aiHand, piles, drawPile, minCards, state.MoveHistory, session, aiStyle, aiDifficulty);
 
             var validation = _engine.ValidateTurn(aiPlays, aiHand, piles, minCards);
             if (!validation.IsValid)
@@ -1082,7 +1085,8 @@ public class GameService : IGameService
 
     private async Task<List<CardPlay>> CallAiServiceAsync(
         IList<int> hand, PileTops piles, List<int> drawPile, int minCards,
-        List<MoveHistoryEntry> moveHistory, GameSession session)
+        List<MoveHistoryEntry> moveHistory, GameSession session,
+        string style = "balanced", string difficulty = "medium")
     {
         try
         {
@@ -1116,12 +1120,14 @@ public class GameService : IGameService
                 {
                     playerUsername = m.PlayerUsername,
                     plays = m.Plays.Select(p => new { card = p.Card, pileSlot = p.PileSlot })
-                })
+                }),
+                style,
+                difficulty
             };
 
             var json = JsonSerializer.Serialize(requestBody, _camelCase);
             var client = _httpClientFactory.CreateClient("AiService");
-            var response = await client.PostAsync("/ai-move",
+            var response = await client.PostAsync("/the-game/ai-move",
                 new StringContent(json, Encoding.UTF8, "application/json"));
             response.EnsureSuccessStatusCode();
 

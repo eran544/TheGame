@@ -1,5 +1,11 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Literal, Optional
+
+
+# AI tuning shared across games. ``difficulty`` controls how close to optimal the
+# AI plays; ``style`` shifts its risk appetite (cautious vs. aggressive).
+Difficulty = Literal["easy", "medium", "hard"]
+PlayStyle = Literal["safe", "balanced", "risky"]
 
 
 class PilesState(BaseModel):
@@ -26,6 +32,8 @@ class AIMoveRequest(BaseModel):
     minCardsThisTurn: int
     playedCards: Optional[List[int]] = None   # all cards placed on piles so far
     moveHistory: Optional[List[LastMove]] = None  # every move played this game
+    difficulty: Difficulty = "medium"
+    style: PlayStyle = "balanced"
 
 
 class CardPlay(BaseModel):
@@ -44,6 +52,8 @@ class AIMessageRequest(BaseModel):
     piles: PilesState
     drawPileCount: int
     moveHistory: Optional[List[LastMove]] = None
+    difficulty: Difficulty = "medium"
+    style: PlayStyle = "balanced"
 
 
 class AIMessageResponse(BaseModel):

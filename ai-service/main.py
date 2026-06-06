@@ -51,12 +51,6 @@ async def health_check():
     }
 
 
-@app.post("/ai-move", response_model=AIMoveResponse)
-async def ai_move(request: AIMoveRequest) -> AIMoveResponse:
-    """Return an AI player's move for the given game state."""
-    return await get_ai_move(request)
-
-
 class ValidateMessageRequest(BaseModel):
     message: str
 
@@ -64,6 +58,20 @@ class ValidateMessageResponse(BaseModel):
     isAllowed: bool
     reason: str
 
+
+# ── The Game endpoints ────────────────────────────────────────────────────────
+# Namespaced under /the-game so a second game (Flip 7) can add its own /flip7/*
+# endpoints alongside. The legacy unprefixed routes are kept as aliases for
+# backward compatibility with existing callers.
+
+@app.post("/the-game/ai-move", response_model=AIMoveResponse)
+@app.post("/ai-move", response_model=AIMoveResponse)
+async def ai_move(request: AIMoveRequest) -> AIMoveResponse:
+    """Return an AI player's move for the given game state."""
+    return await get_ai_move(request)
+
+
+@app.post("/the-game/validate-message", response_model=ValidateMessageResponse)
 @app.post("/validate-message", response_model=ValidateMessageResponse)
 async def validate_message(request: ValidateMessageRequest) -> ValidateMessageResponse:
     """Validate a chat message against The Game communication rules."""
@@ -71,10 +79,16 @@ async def validate_message(request: ValidateMessageRequest) -> ValidateMessageRe
     return ValidateMessageResponse(isAllowed=is_allowed, reason=reason)
 
 
+@app.post("/the-game/ai-message", response_model=AIMessageResponse)
 @app.post("/ai-message", response_model=AIMessageResponse)
 async def generate_ai_message(request: AIMessageRequest) -> AIMessageResponse:
     """Generate a cooperative chat message for an AI player."""
     return await get_ai_message(request)
+
+
+# ── Flip 7 endpoints (Phase 2) ────────────────────────────────────────────────
+# Reserved namespace: /flip7/ai-move, /flip7/ai-message, etc. will be added when
+# the Flip 7 game is implemented, reusing the same difficulty/style infrastructure.
 
 
 if __name__ == "__main__":

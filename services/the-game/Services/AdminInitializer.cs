@@ -21,6 +21,21 @@ public static class AiPlayerConstants
     ];
 
     public static readonly Guid[] Ids = AiUsers.Select(u => u.Id).ToArray();
+
+    // Each seeded AI account plays with a distinct style/difficulty so opponents
+    // feel different. Choosing which AI to add to the lobby therefore chooses how
+    // it plays. (Per-player style selection will move to a persisted setting later.)
+    private static readonly IReadOnlyDictionary<Guid, (string Style, string Difficulty)> Profiles =
+        new Dictionary<Guid, (string, string)>
+        {
+            [AiUsers[0].Id] = ("safe", "medium"),
+            [AiUsers[1].Id] = ("balanced", "medium"),
+            [AiUsers[2].Id] = ("risky", "medium"),
+            [AiUsers[3].Id] = ("risky", "hard"),
+        };
+
+    public static (string Style, string Difficulty) GetProfile(Guid id) =>
+        Profiles.TryGetValue(id, out var p) ? p : ("balanced", "medium");
 }
 
 public class AdminInitializer : IHostedService

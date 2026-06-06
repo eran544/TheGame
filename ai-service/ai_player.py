@@ -63,6 +63,57 @@ Holding cards for future turns is almost always better than over-committing to a
 Always call the play_cards tool to submit your move.\
 """
 
+# Style shifts risk appetite. In this cooperative game "risk" means how much of
+# your hand you commit and how aggressively you chase pile-resetting tricks.
+_STYLE_GUIDANCE: dict[str, str] = {
+    "safe": (
+        "Play it SAFE. Commit as few cards as possible: play exactly minCardsThisTurn "
+        "unless an extra play is a free backwards trick or a zero-cost run. Preserve your "
+        "hand and keep every pile as open as possible for teammates. When unsure, hold back."
+    ),
+    "balanced": (
+        "Play a BALANCED game. Take backwards tricks and obvious runs, but don't over-commit: "
+        "stop once you've made the clearly good plays."
+    ),
+    "risky": (
+        "Play AGGRESSIVELY. Chase backwards tricks and long runs hard, and accept small forward "
+        "jumps to set up bigger swings or to dig the team out of a jam. Commit extra cards when it "
+        "keeps momentum, even if it thins your hand."
+    ),
+}
+
+# Difficulty controls how skilfully the guidance above is applied.
+_DIFFICULTY_GUIDANCE: dict[str, str] = {
+    "easy": (
+        "You are a BEGINNER. Make simple, obvious plays. Don't plan many moves ahead and don't "
+        "agonise over the optimal line — a decent legal move is fine."
+    ),
+    "medium": (
+        "You are a COMPETENT player. Make solid plays and look one step ahead."
+    ),
+    "hard": (
+        "You are an EXPERT. Calculate carefully: maximise backwards tricks, chain runs perfectly, "
+        "read teammates from moveHistory, and never strand a card you could have chained."
+    ),
+}
+
+
+def _build_system_blocks(style: str, difficulty: str) -> list[dict[str, Any]]:
+    """Compose the system prompt as cacheable blocks: the shared base, then the
+    style and difficulty modifiers. Each block is cached independently so the
+    large base is reused across every style/difficulty combination."""
+    style_text = _STYLE_GUIDANCE.get(style, _STYLE_GUIDANCE["balanced"])
+    difficulty_text = _DIFFICULTY_GUIDANCE.get(difficulty, _DIFFICULTY_GUIDANCE["medium"])
+    return [
+        {"type": "text", "text": _SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}},
+        {
+            "type": "text",
+            "text": f"PLAY STYLE:\n{style_text}\n\nSKILL LEVEL:\n{difficulty_text}",
+            "cache_control": {"type": "ephemeral"},
+        },
+    ]
+
+
 _PLAY_CARDS_TOOL: dict[str, Any] = {
     "name": "play_cards",
     "description": (
@@ -126,13 +177,7 @@ async def get_ai_move(req: AIMoveRequest) -> AIMoveResponse:
         response = _client.messages.create(
             model=config.ANTHROPIC_MODEL,
             max_tokens=256,
-            system=[
-                {
-                    "type": "text",
-                    "text": _SYSTEM_PROMPT,
-                    "cache_control": {"type": "ephemeral"},
-                }
-            ],
+            system=_build_system_blocks(req.style, req.difficulty),
             tools=[_PLAY_CARDS_TOOL],
             tool_choice={"type": "any"},
             messages=[{"role": "user", "content": _build_user_message(req)}],
@@ -152,7 +197,7 @@ async def get_ai_move(req: AIMoveRequest) -> AIMoveResponse:
         logger.exception("Claude API error — using greedy fallback")
 
     plays = greedy_fallback(
-        req.hand, req.piles, req.minCardsThisTurn, req.drawPileCount
+        req.hand, req.piles, req.minCardsThisTurn, req.drawPileCount, req.style
     )
     logger.info("Greedy fallback chose %d play(s)", len(plays))
     return AIMoveResponse(plays=plays, source="fallback")
