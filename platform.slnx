@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/services/" />
+  <Folder Name="/services/the-game.tests/">
+    <Project Path="services/the-game.tests/TheGameServer.Tests.csproj" />
+  </Folder>
+  <Folder Name="/services/the-game/">
+    <Project Path="services/the-game/TheGameServer.csproj" />
+  </Folder>
+</Solution>

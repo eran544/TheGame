@@ -22,7 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\server\TheGameServer.csproj" />
+    <ProjectReference Include="..\the-game\TheGameServer.csproj" />
   </ItemGroup>
 
 </Project>

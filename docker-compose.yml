@@ -33,7 +33,7 @@ services:
   # .NET Server
   server:
     build:
-      context: ./server
+      context: ./services/the-game
       dockerfile: Dockerfile.dev
     container_name: thegame-server
     ports:
@@ -51,7 +51,7 @@ services:
     networks:
       - thegame-network
     volumes:
-      - ./server:/app
+      - ./services/the-game:/app
     command: ["dotnet", "watch", "run", "--urls", "http://0.0.0.0:8080"]
 
   # Python AI Service
