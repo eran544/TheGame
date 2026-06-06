@@ -114,12 +114,12 @@ const MultiplayerGamePage: React.FC = () => {
     if (!sessionId || !token) return;
     await gameApi.leaveGame(sessionId, token);
     dispatch(clearGame());
-    navigate('/');
+    navigate('/the-game');
   };
 
   const handleBackToMenu = () => {
     dispatch(clearGame());
-    navigate('/');
+    navigate('/the-game');
   };
 
   const currentPlayerName = players.find((p) => p.userId === currentPlayerId)?.username ?? '';
@@ -247,7 +247,7 @@ const MultiplayerGamePage: React.FC = () => {
       {gamePhase === 'ended' && finalScore && (
         <GameEndModal
           score={finalScore}
-          onPlayAgain={() => navigate('/multiplayer')}
+          onPlayAgain={() => navigate('/the-game/multiplayer')}
           onBackToMenu={handleBackToMenu}
         />
       )}

@@ -33,7 +33,7 @@ const LobbyPage: React.FC = () => {
   };
 
   useLobbyHub(sessionId ?? null, token, () => {
-    if (sessionId) navigate(`/game/${sessionId}`);
+    if (sessionId) navigate(`/the-game/game/${sessionId}`);
   });
 
   useEffect(() => {
@@ -46,13 +46,13 @@ const LobbyPage: React.FC = () => {
   const handleStart = async () => {
     if (!token || !sessionId) return;
     await gameApi.startMultiplayerGame(sessionId, token);
-    navigate(`/game/${sessionId}`);
+    navigate(`/the-game/game/${sessionId}`);
   };
 
   const handleLeave = async () => {
     if (!token || !sessionId) return;
     await dispatch(leaveGameAsync({ sessionId, token }));
-    navigate('/');
+    navigate('/the-game');
   };
 
   const handleAddAI = () => {
