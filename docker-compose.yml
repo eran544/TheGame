@@ -1,5 +1,6 @@
 services:
-  # PostgreSQL Database
+  # PostgreSQL Database — hosts all three logical DBs: TheGameDB (created here),
+  # AuthDB and Flip7DB (created by their services' EF migrations on startup).
   postgres:
     image: postgres:16-alpine
     container_name: thegame-postgres
@@ -19,7 +20,7 @@ services:
       timeout: 5s
       retries: 10
 
-  # Redis Cache
+  # Redis Cache — shared session store across all services.
   redis:
     image: redis:7-alpine
     container_name: thegame-redis
@@ -30,18 +31,19 @@ services:
     networks:
       - thegame-network
 
-  # .NET Server
-  server:
+  # Auth / Identity service (owns AuthDB, issues platform JWTs)
+  auth:
     build:
-      context: ./services/the-game
-      dockerfile: Dockerfile.dev
-    container_name: thegame-server
+      context: .
+      dockerfile: services/auth/Dockerfile.dev
+    container_name: thegame-auth
+    working_dir: /src/services/auth
     ports:
-      - "5001:8080"
+      - "5002:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=TheGameDB;Username=postgres;Password=YourStrong@Passw0rd
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=AuthDB;Username=postgres;Password=YourStrong@Passw0rd
       - ConnectionStrings__Redis=redis:6379
     depends_on:
       postgres:
@@ -51,7 +53,68 @@ services:
     networks:
       - thegame-network
     volumes:
-      - ./services/the-game:/app
+      - ./services/auth:/src/services/auth
+      - ./shared:/src/shared
+      - /src/services/auth/bin
+      - /src/services/auth/obj
+    command: ["dotnet", "watch", "run", "--urls", "http://0.0.0.0:8080"]
+
+  # The Game service (owns TheGameDB)
+  server:
+    build:
+      context: .
+      dockerfile: services/the-game/Dockerfile.dev
+    container_name: thegame-server
+    working_dir: /src/services/the-game
+    ports:
+      - "5001:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=TheGameDB;Username=postgres;Password=YourStrong@Passw0rd
+      - ConnectionStrings__Redis=redis:6379
+      - AIService__BaseUrl=http://ai-service:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - thegame-network
+    volumes:
+      - ./services/the-game:/src/services/the-game
+      - ./shared:/src/shared
+      - /src/services/the-game/bin
+      - /src/services/the-game/obj
+    command: ["dotnet", "watch", "run", "--urls", "http://0.0.0.0:8080"]
+
+  # Flip 7 service (owns Flip7DB — schema in Phase 2)
+  flip7:
+    build:
+      context: .
+      dockerfile: services/flip7/Dockerfile.dev
+    container_name: thegame-flip7
+    working_dir: /src/services/flip7
+    ports:
+      - "5003:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=Flip7DB;Username=postgres;Password=YourStrong@Passw0rd
+      - ConnectionStrings__Redis=redis:6379
+      - AIService__BaseUrl=http://ai-service:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - thegame-network
+    volumes:
+      - ./services/flip7:/src/services/flip7
+      - ./shared:/src/shared
+      - /src/services/flip7/bin
+      - /src/services/flip7/obj
     command: ["dotnet", "watch", "run", "--urls", "http://0.0.0.0:8080"]
 
   # Python AI Service
@@ -81,8 +144,12 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - REACT_APP_API_BASE_URL=https://localhost:5001
-      - REACT_APP_SIGNALR_HUB_URL=https://localhost:5001/gamehub
+      - REACT_APP_API_BASE_URL=http://localhost:5001
+      - REACT_APP_SIGNALR_HUB_URL=http://localhost:5001/gamehub
+      # Per-service URLs (used once the client URL split lands):
+      - REACT_APP_AUTH_URL=http://localhost:5002
+      - REACT_APP_THEGAME_URL=http://localhost:5001
+      - REACT_APP_FLIP7_URL=http://localhost:5003
     volumes:
       - ./client:/app
       - /app/node_modules
