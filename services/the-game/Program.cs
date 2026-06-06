@@ -3,6 +3,7 @@ using Microsoft.OpenApi.Models;
 using GameCommon.Auth;
 using TheGameServer.Data;
 using TheGameServer.Hubs;
+using TheGameServer.Middleware;
 using TheGameServer.Services;
 using TheGameServer.Services.Chat;
 using TheGameServer.Services.Game;
@@ -37,12 +38,12 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Shared platform auth: Redis connection, session store, and JWT validation
-// (incl. the SignalR access_token handshake for /gamehub).
+// (incl. the SignalR access_token handshake for /gamehub). Login/registration
+// is owned by the Auth service — this service only validates tokens and keeps a
+// local user projection (see UserProvisioningMiddleware).
 builder.Services.AddPlatformAuth(builder.Configuration, "/gamehub");
 
 builder.Services.AddScoped<IPasswordValidator, PasswordValidator>();
-builder.Services.AddScoped<IJwtService, JwtService>();
-builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddSingleton<IGameEngine, GameEngine>();
 builder.Services.AddSingleton<IDeckShuffler, DeckShuffler>();
 builder.Services.AddScoped<IGameService, GameService>();
@@ -81,6 +82,8 @@ if (app.Environment.IsDevelopment())
 app.UseCors("AllowClient");
 app.UseAuthentication();
 app.UseAuthorization();
+// Provision a local user projection from JWT claims (auth lives in Auth service).
+app.UseMiddleware<UserProvisioningMiddleware>();
 app.MapControllers();
 app.MapHub<GameHub>("/gamehub");
 
