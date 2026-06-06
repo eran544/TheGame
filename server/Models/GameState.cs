@@ -14,6 +14,7 @@ public class GameState
     public string? UndoSnapshotJson { get; set; }
     public List<MoveHistoryEntry> MoveHistory { get; set; } = new();
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? CurrentTurnStartedAt { get; set; }
 
     public GameSession GameSession { get; set; } = null!;
 }

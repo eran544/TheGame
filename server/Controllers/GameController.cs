@@ -99,11 +99,43 @@ public class GameController : ControllerBase
     {
         var result = await _gameService.LeaveGameAsync(sessionId, GetUserId());
         if (!result.Success) return BadRequest(new { error = result.Error });
+
+        var leave = result.Value!;
         var group = _hub.Clients.Group(GameHub.GroupName(sessionId.ToString()));
-        await group.SendAsync("PlayerLeft", GetUserId());
-        if (result.Value!.GameEnded)
-            await group.SendAsync("GameEnded", new { reason = "player_left" });
+
+        if (leave.ReplacedByAIUsername is not null)
+        {
+            await group.SendAsync("PlayerReplacedByAI", new
+            {
+                disconnectedUsername = leave.DisconnectedUsername,
+                aiUsername = leave.ReplacedByAIUsername
+            });
+            if (leave.GameEnded)
+                await group.SendAsync("GameEnded", leave.StateAfterReplacement ?? (object)new { reason = "completed" });
+            else if (leave.StateAfterReplacement is not null)
+                await group.SendAsync("GameStateUpdated", leave.StateAfterReplacement);
+        }
+        else
+        {
+            await group.SendAsync("PlayerLeft", GetUserId());
+            if (leave.GameEnded)
+                await group.SendAsync("GameEnded", new { reason = "player_left" });
+        }
+
         return Ok();
+    }
+
+    [HttpPost("{sessionId:guid}/reconnect")]
+    public async Task<IActionResult> ReconnectToGame(Guid sessionId)
+    {
+        var result = await _gameService.ReconnectPlayerAsync(sessionId, GetUserId());
+        if (!result.Success) return BadRequest(new { error = result.Error });
+
+        var dto = MapState(result.Value!.State);
+        var group = _hub.Clients.Group(GameHub.GroupName(sessionId.ToString()));
+        await group.SendAsync("PlayerReconnected", new { username = result.Value.ReconnectedUsername });
+        await group.SendAsync("GameStateUpdated", dto);
+        return Ok(dto);
     }
 
     [HttpGet("{sessionId:guid}/lobby")]

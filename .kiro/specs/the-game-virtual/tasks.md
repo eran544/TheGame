@@ -228,7 +228,7 @@
   - Integrate AI players into multiplayer games
   - _Requirements: 3.1, 3.3_
 
-- [ ] 16. Implement disconnection handling and AI replacement
+- [x] 16. Implement disconnection handling and AI replacement
   - Create disconnection detection with timeout handling
   - Build AI replacement system for disconnected players
   - Implement hand and context transfer to AI
@@ -236,7 +236,7 @@
   - Update statistics handling for AI-assisted games
   - _Requirements: 3.2_
 
-- [ ]* 16.1 Write integration tests for AI replacement
+- [x]* 16.1 Write integration tests for AI replacement
   - Test disconnection detection
   - Test AI replacement process
   - Test reconnection handling

@@ -24,9 +24,20 @@ public interface IGameService
     Task<GameResultEnvelope<LobbyView>> GetLobbyStateAsync(Guid sessionId, Guid userId);
     Task<GameResultEnvelope<LobbyView>> AddAIPlayerAsync(Guid sessionId, Guid userId);
     Task<GameResultEnvelope<LobbyView>> RemoveAIPlayerAsync(Guid sessionId, Guid userId, Guid aiUserId);
+
+    // Disconnection & reconnection
+    Task<GameResultEnvelope<ReconnectResult>> ReconnectPlayerAsync(Guid sessionId, Guid userId);
+    Task<GameResultEnvelope<TimeoutResult>> TimeoutCurrentPlayerAsync(Guid sessionId);
 }
 
-public record LeaveResult(bool GameEnded);
+public record LeaveResult(
+    bool GameEnded,
+    string? DisconnectedUsername = null,
+    string? ReplacedByAIUsername = null,
+    GameStateView? StateAfterReplacement = null);
+
+public record ReconnectResult(string ReconnectedUsername, GameStateView State);
+public record TimeoutResult(string DisconnectedUsername, string ReplacedByAIUsername, GameStateView? State, bool GameEnded, string? EndReason);
 
 public record GameResultEnvelope<T>(bool Success, T? Value, string? Error)
 {
@@ -219,6 +230,7 @@ public class GameService : IGameService
         state.PlayedCardsCount += plays.Count;
         state.DrawPileCards = JsonSerializer.Serialize(drawPile);
         state.UpdatedAt = DateTime.UtcNow;
+        state.CurrentTurnStartedAt = null; // will be set when next player is determined
 
         player.Hand!.Cards = JsonSerializer.Serialize(newHand);
         player.Hand.UpdatedAt = DateTime.UtcNow;
@@ -253,6 +265,7 @@ public class GameService : IGameService
                 var currentIdx = activePlayers.FindIndex(p => p.UserId == userId);
                 nextPlayerForAI = activePlayers[(currentIdx + 1) % activePlayers.Count];
                 state.CurrentPlayerId = nextPlayerForAI.UserId;
+                state.CurrentTurnStartedAt = DateTime.UtcNow;
 
                 var nextHand = nextPlayerForAI.Hand is not null
                     ? JsonSerializer.Deserialize<List<int>>(nextPlayerForAI.Hand.Cards) ?? new()
@@ -568,7 +581,8 @@ public class GameService : IGameService
             DescendingPile1 = GameRules.DescendingStartValue,
             DescendingPile2 = GameRules.DescendingStartValue,
             DrawPileCards = JsonSerializer.Serialize(drawPile),
-            PlayedCardsCount = 0
+            PlayedCardsCount = 0,
+            CurrentTurnStartedAt = firstPlayer.IsAI ? null : DateTime.UtcNow
         };
 
         session.GamePhase = "playing";
@@ -633,22 +647,74 @@ public class GameService : IGameService
 
         if (session.GamePhase == "playing")
         {
-            // Phase 2: any leave during game ends it without saving stats
-            session.GamePhase = "ended";
-            session.EndedAt = DateTime.UtcNow;
-            var alreadyEnded = await _db.GameResults.AnyAsync(r => r.GameSessionId == sessionId);
-            if (!alreadyEnded)
+            var disconnectedUsername = player.User?.Username ?? "Player";
+
+            // Count remaining humans after this player disconnects
+            var remainingHumans = session.Players
+                .Where(p => p.UserId != userId && !p.IsAI && !p.IsSpectator && p.DisconnectedAt == null)
+                .ToList();
+
+            if (remainingHumans.Count == 0)
             {
-                _db.GameResults.Add(new GameResult
+                // No humans left — end the game
+                session.GamePhase = "ended";
+                session.EndedAt = DateTime.UtcNow;
+                var alreadyEnded = await _db.GameResults.AnyAsync(r => r.GameSessionId == sessionId);
+                if (!alreadyEnded)
                 {
-                    GameSessionId = sessionId,
-                    TotalCardsRemaining = 0,
-                    IsPerfectGame = false,
-                    EndReason = "disconnection"
-                });
+                    _db.GameResults.Add(new GameResult
+                    {
+                        GameSessionId = sessionId,
+                        TotalCardsRemaining = 0,
+                        IsPerfectGame = false,
+                        EndReason = "disconnection"
+                    });
+                }
+                await _db.SaveChangesAsync();
+                return GameResultEnvelope<LeaveResult>.Ok(new LeaveResult(true, disconnectedUsername));
             }
-            await _db.SaveChangesAsync();
-            return GameResultEnvelope<LeaveResult>.Ok(new LeaveResult(true));
+
+            // Replace disconnected player with AI so the game continues
+            var (aiUsername, replacementOk) = await ReplaceWithAIAsync(session, session.State!, userId);
+            if (!replacementOk)
+            {
+                // No AI slot available — fall back to ending the game
+                session.GamePhase = "ended";
+                session.EndedAt = DateTime.UtcNow;
+                var alreadyEnded = await _db.GameResults.AnyAsync(r => r.GameSessionId == sessionId);
+                if (!alreadyEnded)
+                {
+                    _db.GameResults.Add(new GameResult
+                    {
+                        GameSessionId = sessionId,
+                        TotalCardsRemaining = 0,
+                        IsPerfectGame = false,
+                        EndReason = "disconnection"
+                    });
+                }
+                await _db.SaveChangesAsync();
+                return GameResultEnvelope<LeaveResult>.Ok(new LeaveResult(true, disconnectedUsername));
+            }
+
+            // If it was the disconnected player's turn, the AI now holds the turn.
+            // Run AI turns and build a broadcast state from the first remaining human's perspective.
+            GameStateView? stateView = null;
+            var state = session.State!;
+            var drawPile = JsonSerializer.Deserialize<List<int>>(state.DrawPileCards) ?? [];
+
+            if (state.CurrentPlayerId != null && session.Players.Any(p => p.UserId == state.CurrentPlayerId && p.IsAI))
+            {
+                var aiResult = await HandleAITurnsAsync(session, state, drawPile);
+                if (aiResult.GameEnded)
+                {
+                    return GameResultEnvelope<LeaveResult>.Ok(new LeaveResult(
+                        true, disconnectedUsername, aiUsername,
+                        BuildViewForBroadcast(session, state, drawPile, aiResult.FinalScore)));
+                }
+            }
+
+            stateView = BuildViewForBroadcast(session, state, drawPile, null);
+            return GameResultEnvelope<LeaveResult>.Ok(new LeaveResult(false, disconnectedUsername, aiUsername, stateView));
         }
 
         // Game already ended — no-op, don't broadcast again
@@ -723,6 +789,177 @@ public class GameService : IGameService
 
         var remaining = session.Players.Where(p => p.Id != aiPlayer.Id);
         return GameResultEnvelope<LobbyView>.Ok(BuildLobbyView(session, remaining.Select(p => (p, p.User!))));
+    }
+
+    // ── Disconnection & reconnection ────────────────────────────────────────
+
+    public async Task<GameResultEnvelope<ReconnectResult>> ReconnectPlayerAsync(Guid sessionId, Guid userId)
+    {
+        var session = await _db.GameSessions
+            .Include(s => s.State)
+            .Include(s => s.Players).ThenInclude(p => p.Hand)
+            .Include(s => s.Players).ThenInclude(p => p.User)
+            .SingleOrDefaultAsync(s => s.Id == sessionId);
+
+        if (session is null) return GameResultEnvelope<ReconnectResult>.Fail("Game session not found");
+        if (session.GamePhase != "playing") return GameResultEnvelope<ReconnectResult>.Fail("Game is not in progress");
+
+        var humanPlayer = session.Players.SingleOrDefault(p => p.UserId == userId && p.DisconnectedAt != null && p.ReplacedByAI);
+        if (humanPlayer is null) return GameResultEnvelope<ReconnectResult>.Fail("No active disconnection found for this player");
+
+        // Find the AI that replaced them (same PlayerIndex, IsAI, not disconnected)
+        var aiPlayer = session.Players.SingleOrDefault(p =>
+            p.IsAI && p.PlayerIndex == humanPlayer.PlayerIndex && p.DisconnectedAt == null);
+        if (aiPlayer is null) return GameResultEnvelope<ReconnectResult>.Fail("Replacement AI player not found");
+
+        // Transfer current hand from AI back to the human
+        var aiHandJson = aiPlayer.Hand?.Cards ?? "[]";
+        if (humanPlayer.Hand is not null)
+            humanPlayer.Hand.Cards = aiHandJson;
+        else
+            _db.PlayerHands.Add(new PlayerHand { GameSessionId = session.Id, PlayerId = humanPlayer.Id, Cards = aiHandJson });
+
+        humanPlayer.DisconnectedAt = null;
+        humanPlayer.ReplacedByAI = false;
+
+        var state = session.State!;
+        // If it's the AI's turn, hand it back to the human
+        if (state.CurrentPlayerId == aiPlayer.UserId)
+        {
+            state.CurrentPlayerId = userId;
+            state.CurrentTurnStartedAt = DateTime.UtcNow;
+        }
+
+        _db.GamePlayers.Remove(aiPlayer);
+        await _db.SaveChangesAsync();
+
+        var hand = JsonSerializer.Deserialize<List<int>>(aiHandJson) ?? [];
+        var drawPile = JsonSerializer.Deserialize<List<int>>(state.DrawPileCards) ?? [];
+        var allPlayers = BuildPlayersInGame(session, state, userId, hand);
+        var stateView = BuildView(session, state, hand, drawPile, null, allPlayers);
+        var username = humanPlayer.User?.Username ?? "Player";
+
+        return GameResultEnvelope<ReconnectResult>.Ok(new ReconnectResult(username, stateView));
+    }
+
+    public async Task<GameResultEnvelope<TimeoutResult>> TimeoutCurrentPlayerAsync(Guid sessionId)
+    {
+        var session = await _db.GameSessions
+            .Include(s => s.State)
+            .Include(s => s.Players).ThenInclude(p => p.Hand)
+            .Include(s => s.Players).ThenInclude(p => p.User)
+            .SingleOrDefaultAsync(s => s.Id == sessionId);
+
+        if (session is null) return GameResultEnvelope<TimeoutResult>.Fail("Game session not found");
+        if (session.GamePhase != "playing") return GameResultEnvelope<TimeoutResult>.Fail("Game not in progress");
+
+        var state = session.State!;
+        var currentPlayer = session.Players.SingleOrDefault(p =>
+            p.UserId == state.CurrentPlayerId && !p.IsAI && p.DisconnectedAt == null);
+        if (currentPlayer is null) return GameResultEnvelope<TimeoutResult>.Fail("Current player is not a timed-out human");
+
+        var disconnectedUsername = currentPlayer.User?.Username ?? "Player";
+
+        var remainingHumans = session.Players
+            .Where(p => p.UserId != currentPlayer.UserId && !p.IsAI && !p.IsSpectator && p.DisconnectedAt == null)
+            .ToList();
+
+        if (remainingHumans.Count == 0)
+        {
+            session.GamePhase = "ended";
+            session.EndedAt = DateTime.UtcNow;
+            var alreadyEnded = await _db.GameResults.AnyAsync(r => r.GameSessionId == sessionId);
+            if (!alreadyEnded)
+                _db.GameResults.Add(new GameResult { GameSessionId = sessionId, TotalCardsRemaining = 0, IsPerfectGame = false, EndReason = "disconnection" });
+            await _db.SaveChangesAsync();
+            return GameResultEnvelope<TimeoutResult>.Ok(new TimeoutResult(disconnectedUsername, "", null, true, "disconnection"));
+        }
+
+        var (aiUsername, replacementOk) = await ReplaceWithAIAsync(session, state, currentPlayer.UserId);
+        if (!replacementOk)
+        {
+            session.GamePhase = "ended";
+            session.EndedAt = DateTime.UtcNow;
+            var alreadyEnded = await _db.GameResults.AnyAsync(r => r.GameSessionId == sessionId);
+            if (!alreadyEnded)
+                _db.GameResults.Add(new GameResult { GameSessionId = sessionId, TotalCardsRemaining = 0, IsPerfectGame = false, EndReason = "disconnection" });
+            await _db.SaveChangesAsync();
+            return GameResultEnvelope<TimeoutResult>.Ok(new TimeoutResult(disconnectedUsername, "", null, true, "disconnection"));
+        }
+
+        var drawPile = JsonSerializer.Deserialize<List<int>>(state.DrawPileCards) ?? [];
+        var aiResult = await HandleAITurnsAsync(session, state, drawPile);
+        var broadcastState = BuildViewForBroadcast(session, state, drawPile, aiResult.FinalScore);
+
+        return GameResultEnvelope<TimeoutResult>.Ok(new TimeoutResult(
+            disconnectedUsername, aiUsername, broadcastState, aiResult.GameEnded, aiResult.EndReason));
+    }
+
+    // Replaces a disconnected human player with an AI. Returns (aiUsername, success).
+    private async Task<(string AiUsername, bool Success)> ReplaceWithAIAsync(
+        GameSession session, GameState state, Guid disconnectedUserId)
+    {
+        var player = session.Players.Single(p => p.UserId == disconnectedUserId);
+        player.DisconnectedAt = DateTime.UtcNow;
+        player.ReplacedByAI = true;
+
+        var usedAiIds = session.Players.Where(p => p.IsAI).Select(p => p.UserId).ToHashSet();
+        var availableAiId = AiPlayerConstants.Ids.FirstOrDefault(id => !usedAiIds.Contains(id));
+        if (availableAiId == Guid.Empty)
+            return (string.Empty, false);
+
+        var aiUser = await _db.Users.SingleOrDefaultAsync(u => u.Id == availableAiId);
+        if (aiUser is null) return (string.Empty, false);
+
+        var aiPlayer = new GamePlayer
+        {
+            GameSessionId = session.Id,
+            UserId = availableAiId,
+            PlayerIndex = player.PlayerIndex,
+            IsAI = true
+        };
+        _db.GamePlayers.Add(aiPlayer);
+
+        var handJson = player.Hand?.Cards ?? "[]";
+        var aiHand = new PlayerHand { GameSessionId = session.Id, PlayerId = aiPlayer.Id, Cards = handJson };
+        _db.PlayerHands.Add(aiHand);
+
+        if (state.CurrentPlayerId == disconnectedUserId)
+        {
+            state.CurrentPlayerId = availableAiId;
+            state.CurrentTurnStartedAt = DateTime.UtcNow;
+        }
+
+        await _db.SaveChangesAsync();
+
+        // EF relationship fixup already added aiPlayer to session.Players.
+        aiPlayer.User = aiUser;
+        aiPlayer.Hand = aiHand;
+
+        _logger.LogInformation("Player {DisconnectedUser} replaced by AI {AIUser} in session {SessionId}",
+            player.User?.Username ?? disconnectedUserId.ToString(), aiUser.Username, session.Id);
+
+        return (aiUser.Username, true);
+    }
+
+    // Builds a game state view without a specific player's hand (safe to broadcast to the whole group).
+    private static GameStateView BuildViewForBroadcast(
+        GameSession session, GameState state, List<int> drawPile, GameScore? finalScore)
+    {
+        var activePlayers = session.Players
+            .Where(p => !p.IsSpectator)
+            .OrderBy(p => p.PlayerIndex)
+            .Select(p =>
+            {
+                var count = p.Hand is not null
+                    ? (JsonSerializer.Deserialize<List<int>>(p.Hand.Cards)?.Count ?? 0)
+                    : 0;
+                return new PlayerInGame(p.UserId, p.User?.Username ?? "AI", count, p.IsAI,
+                    state.CurrentPlayerId == p.UserId, p.DisconnectedAt is not null);
+            })
+            .ToList<PlayerInGame>();
+
+        return BuildView(session, state, [], drawPile, finalScore, activePlayers);
     }
 
     // ── AI turn handling ────────────────────────────────────────────────────
@@ -832,6 +1069,9 @@ public class GameService : IGameService
                 await _db.SaveChangesAsync();
                 return new AiTurnResult(true, "completed", score, aiMoves);
             }
+
+            if (!nextPlayer.IsAI)
+                state.CurrentTurnStartedAt = DateTime.UtcNow;
 
             await _db.SaveChangesAsync();
 
@@ -976,9 +1216,12 @@ public class GameService : IGameService
                 GameResultId = result.Id,
                 UserId = mp.UserId,
                 CardsInHand = mpHandCount,
-                PlayTimeMinutes = durationMinutes
+                PlayTimeMinutes = durationMinutes,
+                WasReplacedByAI = mp.ReplacedByAI
             });
-            await UpdatePlayerStatisticsAsync(mp.UserId, finalScore, durationMinutes);
+            // Only count stats for players who stayed until the end
+            if (mp.DisconnectedAt == null)
+                await UpdatePlayerStatisticsAsync(mp.UserId, finalScore, durationMinutes);
         }
 
         return finalScore;

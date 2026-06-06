@@ -30,7 +30,7 @@ public class MultiplayerGameServiceTests : IDisposable
         _db.SaveChanges();
 
         _shuffler = new StubShuffler();
-        _sut = new GameService(_db, new GameEngine(), _shuffler);
+        _sut = GameServiceFactory.Create(_db, _shuffler);
     }
 
     public void Dispose() => _db.Dispose();
@@ -236,7 +236,7 @@ public class MultiplayerGameServiceTests : IDisposable
         var result = await _sut.PlayTurnAsync(sessionId, _aliceId, plays);
 
         result.Success.Should().BeTrue();
-        var lastMove = result.Value!.State.LastMove;
+        var lastMove = result.Value!.State.RecentMoves?.FirstOrDefault();
         lastMove.Should().NotBeNull();
         lastMove!.PlayerUsername.Should().Be("alice");
         lastMove.Plays.Should().HaveCount(2);
@@ -286,13 +286,15 @@ public class MultiplayerGameServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task LeaveGame_DuringActiveGame_EndsSessionWithDisconnectionResult()
+    public async Task LeaveGame_DuringActiveGame_WithNoAIAvailable_EndsSession()
     {
+        // Without AI users seeded in the DB the replacement falls back to ending the game.
         var sessionId = await StartTwoPlayerGameAsync();
 
         var result = await _sut.LeaveGameAsync(sessionId, _aliceId);
 
         result.Success.Should().BeTrue();
+        result.Value!.GameEnded.Should().BeTrue();
         var session = await _db.GameSessions.FindAsync(sessionId);
         session!.GamePhase.Should().Be("ended");
         var gameResult = await _db.GameResults.SingleAsync(r => r.GameSessionId == sessionId);

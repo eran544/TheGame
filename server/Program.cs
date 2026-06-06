@@ -58,6 +58,7 @@ builder.Services.AddHttpClient("AiService", client =>
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddHostedService<AdminInitializer>();
+builder.Services.AddHostedService<TurnTimeoutService>();
 
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()
     ?? throw new InvalidOperationException("JwtSettings missing");
@@ -117,7 +118,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowClient", policy =>
     {
-        policy.WithOrigins("http://localhost:3000", "http://10.0.0.31:3000")
+        policy.WithOrigins("http://localhost:3000", "http://localhost:3000")
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();

@@ -25,7 +25,7 @@ public class GameServiceTests : IDisposable
         _db.SaveChanges();
 
         _shuffler = new StubShuffler();
-        _sut = new GameService(_db, new GameEngine(), _shuffler);
+        _sut = GameServiceFactory.Create(_db, _shuffler);
     }
 
     public void Dispose() => _db.Dispose();

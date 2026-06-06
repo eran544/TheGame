@@ -38,10 +38,27 @@ public class GameHub : Hub
         if (_connections.TryRemove(Context.ConnectionId, out var info))
         {
             var result = await _gameService.LeaveGameAsync(info.SessionId, info.UserId);
-            if (result.Success && result.Value!.GameEnded)
+            if (!result.Success) { await base.OnDisconnectedAsync(exception); return; }
+
+            var leave = result.Value!;
+            var group = Clients.Group(GroupName(info.SessionId.ToString()));
+
+            if (leave.ReplacedByAIUsername is not null)
             {
-                await Clients.Group(GroupName(info.SessionId.ToString()))
-                    .SendAsync("GameEnded", new { reason = "disconnection" });
+                await group.SendAsync("PlayerReplacedByAI", new
+                {
+                    disconnectedUsername = leave.DisconnectedUsername,
+                    aiUsername = leave.ReplacedByAIUsername
+                });
+
+                if (leave.GameEnded)
+                    await group.SendAsync("GameEnded", leave.StateAfterReplacement ?? (object)new { reason = "completed" });
+                else if (leave.StateAfterReplacement is not null)
+                    await group.SendAsync("GameStateUpdated", leave.StateAfterReplacement);
+            }
+            else if (leave.GameEnded)
+            {
+                await group.SendAsync("GameEnded", new { reason = "disconnection" });
             }
         }
         await base.OnDisconnectedAsync(exception);

@@ -81,8 +81,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - REACT_APP_API_BASE_URL=http://10.0.0.31:5001
-      - REACT_APP_SIGNALR_HUB_URL=http://10.0.0.31:5001/gamehub
+      - REACT_APP_API_BASE_URL=https://localhost:5001
+      - REACT_APP_SIGNALR_HUB_URL=https://localhost:5001/gamehub
     volumes:
       - ./client:/app
       - /app/node_modules

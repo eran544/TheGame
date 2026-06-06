@@ -35,6 +35,7 @@ export interface GameSliceState {
   recentMoves: LastMove[];
   canUndo: boolean;
   endReason: string | null;
+  aiReplacementNotice: string | null;
   status: 'idle' | 'loading' | 'failed';
   error: string | null;
 }
@@ -60,6 +61,7 @@ const initialState: GameSliceState = {
   recentMoves: [],
   canUndo: false,
   endReason: null,
+  aiReplacementNotice: null,
   status: 'idle',
   error: null,
 };
@@ -227,6 +229,18 @@ const gameSlice = createSlice({
       state.chatBlocked = null;
     },
 
+    playerReplacedByAI(state, action: PayloadAction<{ disconnectedUsername: string; aiUsername: string }>) {
+      state.aiReplacementNotice = `${action.payload.disconnectedUsername} disconnected and was replaced by AI (${action.payload.aiUsername}).`;
+    },
+
+    playerReconnected(state, action: PayloadAction<{ username: string }>) {
+      state.aiReplacementNotice = `${action.payload.username} reconnected and reclaimed their seat.`;
+    },
+
+    clearAiReplacementNotice(state) {
+      state.aiReplacementNotice = null;
+    },
+
     clearGame() {
       return { ...initialState };
     },
@@ -347,6 +361,9 @@ export const {
   gameEndedFromHub,
   addChatMessage,
   clearChatBlocked,
+  playerReplacedByAI,
+  playerReconnected,
+  clearAiReplacementNotice,
   clearGame,
   clearGameError,
 } = gameSlice.actions;
