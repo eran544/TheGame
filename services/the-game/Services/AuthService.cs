@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using GameCommon.Auth;
 using TheGameServer.Data;
 using TheGameServer.DTOs.Auth;
 using TheGameServer.Models;

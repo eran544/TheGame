@@ -1,7 +1,7 @@
 using FluentAssertions;
 using Moq;
 using StackExchange.Redis;
-using TheGameServer.Services;
+using GameCommon.Auth;
 
 namespace TheGameServer.Tests.Services;
 

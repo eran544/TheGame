@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Moq;
+using GameCommon.Auth;
 using TheGameServer.Data;
 using TheGameServer.DTOs.Admin;
 using TheGameServer.Models;

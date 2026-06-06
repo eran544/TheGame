@@ -1,6 +1,6 @@
 using StackExchange.Redis;
 
-namespace TheGameServer.Services;
+namespace GameCommon.Auth;
 
 public interface ISessionService
 {

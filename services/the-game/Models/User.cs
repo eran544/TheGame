@@ -1,8 +1,9 @@
 using System.ComponentModel.DataAnnotations;
+using GameCommon.Identity;
 
 namespace TheGameServer.Models;
 
-public class User
+public class User : IIdentityUser
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 

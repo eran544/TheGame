@@ -6,4 +6,7 @@
   <Folder Name="/services/the-game/">
     <Project Path="services/the-game/TheGameServer.csproj" />
   </Folder>
+  <Folder Name="/shared/">
+    <Project Path="shared/GameCommon/GameCommon.csproj" />
+  </Folder>
 </Solution>

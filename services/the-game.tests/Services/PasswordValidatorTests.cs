@@ -1,5 +1,5 @@
 using FluentAssertions;
-using TheGameServer.Services;
+using GameCommon.Auth;
 
 namespace TheGameServer.Tests.Services;
 

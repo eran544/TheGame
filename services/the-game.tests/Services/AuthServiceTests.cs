@@ -1,6 +1,8 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Moq;
+using GameCommon.Auth;
+using GameCommon.Identity;
 using TheGameServer.Data;
 using TheGameServer.DTOs.Auth;
 using TheGameServer.Models;
@@ -22,8 +24,8 @@ public class AuthServiceTests : IDisposable
             .Options;
         _db = new AppDbContext(options);
 
-        _jwt.Setup(j => j.GenerateToken(It.IsAny<User>(), out It.Ref<string>.IsAny))
-            .Returns((User _, out string sessionId) =>
+        _jwt.Setup(j => j.GenerateToken(It.IsAny<IIdentityUser>(), out It.Ref<string>.IsAny))
+            .Returns((IIdentityUser _, out string sessionId) =>
             {
                 sessionId = "test-session-id";
                 return "test-token";

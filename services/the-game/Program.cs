@@ -1,9 +1,6 @@
-using System.Text;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using StackExchange.Redis;
+using GameCommon.Auth;
 using TheGameServer.Data;
 using TheGameServer.Hubs;
 using TheGameServer.Services;
@@ -39,12 +36,12 @@ builder.Services.AddSignalR();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
-    ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!));
+// Shared platform auth: Redis connection, session store, and JWT validation
+// (incl. the SignalR access_token handshake for /gamehub).
+builder.Services.AddPlatformAuth(builder.Configuration, "/gamehub");
 
 builder.Services.AddScoped<IPasswordValidator, PasswordValidator>();
 builder.Services.AddScoped<IJwtService, JwtService>();
-builder.Services.AddScoped<ISessionService, SessionService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddSingleton<IGameEngine, GameEngine>();
 builder.Services.AddSingleton<IDeckShuffler, DeckShuffler>();
@@ -59,58 +56,6 @@ builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddHostedService<AdminInitializer>();
 builder.Services.AddHostedService<TurnTimeoutService>();
-
-var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()
-    ?? throw new InvalidOperationException("JwtSettings missing");
-
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtSettings.Issuer,
-            ValidAudience = jwtSettings.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SecretKey)),
-            ClockSkew = TimeSpan.Zero
-        };
-
-        options.Events = new JwtBearerEvents
-        {
-            OnMessageReceived = ctx =>
-            {
-                // SignalR sends the token as a query string parameter for WebSocket/SSE
-                var token = ctx.Request.Query["access_token"];
-                if (!string.IsNullOrEmpty(token) &&
-                    ctx.HttpContext.Request.Path.StartsWithSegments("/gamehub"))
-                {
-                    ctx.Token = token;
-                }
-                return Task.CompletedTask;
-            },
-            OnTokenValidated = async ctx =>
-            {
-                var sessionId = ctx.Principal?.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti)?.Value;
-                if (string.IsNullOrEmpty(sessionId))
-                {
-                    ctx.Fail("Missing session id");
-                    return;
-                }
-
-                var sessions = ctx.HttpContext.RequestServices.GetRequiredService<ISessionService>();
-                if (!await sessions.IsActiveAsync(sessionId))
-                {
-                    ctx.Fail("Session expired or revoked");
-                    return;
-                }
-
-                await sessions.TouchAsync(sessionId);
-            }
-        };
-    });
 
 builder.Services.AddAuthorization();
 

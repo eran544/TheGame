@@ -1,4 +1,4 @@
-namespace TheGameServer.Services;
+namespace GameCommon.Auth;
 
 public interface IPasswordValidator
 {

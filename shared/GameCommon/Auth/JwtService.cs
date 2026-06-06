@@ -1,14 +1,15 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
-using TheGameServer.Models;
+using GameCommon.Identity;
 
-namespace TheGameServer.Services;
+namespace GameCommon.Auth;
 
 public interface IJwtService
 {
-    string GenerateToken(User user, out string sessionId);
+    string GenerateToken(IIdentityUser user, out string sessionId);
 }
 
 public class JwtSettings
@@ -29,7 +30,7 @@ public class JwtService : IJwtService
             ?? throw new InvalidOperationException("JwtSettings not configured");
     }
 
-    public string GenerateToken(User user, out string sessionId)
+    public string GenerateToken(IIdentityUser user, out string sessionId)
     {
         sessionId = Guid.NewGuid().ToString();
 
