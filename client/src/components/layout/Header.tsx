@@ -21,7 +21,7 @@ const Header: React.FC = () => {
   return (
     <header className={styles.header}>
       <Link to="/" className={styles.logo}>
-        The <span>Game</span>
+        Game <span>Hub</span>
       </Link>
 
       {isAuthenticated && user && (

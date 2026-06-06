@@ -92,7 +92,7 @@ const GamePage: React.FC = () => {
 
   const handleBackToMenu = () => {
     dispatch(clearGame());
-    navigate('/');
+    navigate('/the-game');
   };
 
   if (status === 'loading' && gamePhase === 'lobby') {

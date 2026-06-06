@@ -4,6 +4,8 @@ import ProtectedRoute from './routes/ProtectedRoute';
 import AdminRoute from './routes/AdminRoute';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import GameSelectionPage from './pages/GameSelectionPage';
+import Flip7ComingSoonPage from './pages/Flip7ComingSoonPage';
 import MainMenuPage from './pages/MainMenuPage';
 import GamePage from './pages/GamePage';
 import MultiplayerPage from './pages/MultiplayerPage';
@@ -22,13 +24,20 @@ const App: React.FC = () => {
 
       {/* Protected routes */}
       <Route element={<ProtectedRoute />}>
-        <Route path="/" element={<MainMenuPage />} />
-        <Route path="/game/new" element={<GamePage />} />
-        <Route path="/multiplayer" element={<MultiplayerPage />} />
-        <Route path="/lobby/:sessionId" element={<LobbyPage />} />
-        <Route path="/game/:sessionId" element={<MultiplayerGamePage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/instructions" element={<InstructionsPage />} />
+        {/* Game selection landing */}
+        <Route path="/" element={<GameSelectionPage />} />
+
+        {/* Flip 7 (Phase 2) */}
+        <Route path="/flip7" element={<Flip7ComingSoonPage />} />
+
+        {/* The Game */}
+        <Route path="/the-game" element={<MainMenuPage />} />
+        <Route path="/the-game/game/new" element={<GamePage />} />
+        <Route path="/the-game/multiplayer" element={<MultiplayerPage />} />
+        <Route path="/the-game/lobby/:sessionId" element={<LobbyPage />} />
+        <Route path="/the-game/game/:sessionId" element={<MultiplayerGamePage />} />
+        <Route path="/the-game/dashboard" element={<DashboardPage />} />
+        <Route path="/the-game/instructions" element={<InstructionsPage />} />
       </Route>
 
       {/* Admin routes */}

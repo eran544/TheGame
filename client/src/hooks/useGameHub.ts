@@ -1,7 +1,14 @@
 import { useEffect, useRef } from 'react';
 import { HubConnectionBuilder, HubConnection, LogLevel } from '@microsoft/signalr';
 import useAppDispatch from './useAppDispatch';
-import { applyGameStateFromHub, gameEndedFromHub, loadGameAsync, addChatMessage } from '../store/slices/gameSlice';
+import {
+  applyGameStateFromHub,
+  gameEndedFromHub,
+  loadGameAsync,
+  addChatMessage,
+  playerReplacedByAI,
+  playerReconnected,
+} from '../store/slices/gameSlice';
 import type { GameStateDto } from '../store/slices/gameSlice';
 import type { ChatMessage } from '../types/game';
 
@@ -38,6 +45,14 @@ export function useGameHub(sessionId: string | null, token: string | null): void
 
     connection.on('ChatMessageReceived', (msg: ChatMessage) => {
       dispatch(addChatMessage(msg));
+    });
+
+    connection.on('PlayerReplacedByAI', (payload: { disconnectedUsername: string; aiUsername: string }) => {
+      dispatch(playerReplacedByAI(payload));
+    });
+
+    connection.on('PlayerReconnected', (payload: { username: string }) => {
+      dispatch(playerReconnected(payload));
     });
 
     // PlayerLeft during an active game is handled by GameEnded; during lobby

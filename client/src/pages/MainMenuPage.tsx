@@ -32,7 +32,7 @@ const MainMenuPage: React.FC = () => {
             variant="primary"
             size="lg"
             fullWidth
-            onClick={() => navigate('/game/new')}
+            onClick={() => navigate('/the-game/game/new')}
           >
             Play Solo
           </Button>
@@ -41,7 +41,7 @@ const MainMenuPage: React.FC = () => {
             variant="secondary"
             size="lg"
             fullWidth
-            onClick={() => navigate('/multiplayer')}
+            onClick={() => navigate('/the-game/multiplayer')}
           >
             Multiplayer
           </Button>
@@ -50,7 +50,7 @@ const MainMenuPage: React.FC = () => {
             variant="secondary"
             size="lg"
             fullWidth
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate('/the-game/dashboard')}
           >
             Dashboard
           </Button>
@@ -59,7 +59,7 @@ const MainMenuPage: React.FC = () => {
             variant="ghost"
             size="lg"
             fullWidth
-            onClick={() => navigate('/instructions')}
+            onClick={() => navigate('/the-game/instructions')}
           >
             How to Play
           </Button>

@@ -61,7 +61,7 @@ const DashboardPage: React.FC = () => {
       <div className={styles.page}>
         <div className={styles.header}>
           <h2 className={styles.pageTitle}>Dashboard</h2>
-          <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
+          <Button variant="ghost" size="sm" onClick={() => navigate('/the-game')}>
             ← Back
           </Button>
         </div>
@@ -109,7 +109,7 @@ const DashboardPage: React.FC = () => {
           {history.length === 0 && status !== 'loading' ? (
             <div className={styles.emptyState}>
               <p>No games played yet — start your first game!</p>
-              <Button variant="primary" onClick={() => navigate('/game/new')}>
+              <Button variant="primary" onClick={() => navigate('/the-game/game/new')}>
                 Play Now
               </Button>
             </div>

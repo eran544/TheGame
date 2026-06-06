@@ -22,7 +22,7 @@ const MultiplayerPage: React.FC = () => {
     if (!token) return;
     const result = await dispatch(createMultiplayerGameAsync({ maxPlayers, isExpertMode, token }));
     if (createMultiplayerGameAsync.fulfilled.match(result)) {
-      navigate(`/lobby/${result.payload.sessionId}`);
+      navigate(`/the-game/lobby/${result.payload.sessionId}`);
     }
   };
 
@@ -30,7 +30,7 @@ const MultiplayerPage: React.FC = () => {
     if (!token || !joinId.trim()) return;
     const result = await dispatch(joinGameAsync({ sessionId: joinId.trim(), token }));
     if (joinGameAsync.fulfilled.match(result)) {
-      navigate(`/lobby/${result.payload.sessionId}`);
+      navigate(`/the-game/lobby/${result.payload.sessionId}`);
     }
   };
 
@@ -99,7 +99,7 @@ const MultiplayerPage: React.FC = () => {
           </Button>
         </section>
 
-        <button className={styles.backLink} onClick={() => navigate('/')}>
+        <button className={styles.backLink} onClick={() => navigate('/the-game')}>
           ← Back to Menu
         </button>
       </div>

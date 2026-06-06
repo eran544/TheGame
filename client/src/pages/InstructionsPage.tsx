@@ -248,14 +248,14 @@ const InstructionsPage: React.FC = () => {
               Next →
             </Button>
           ) : (
-            <Button variant="primary" onClick={() => navigate('/')}>
+            <Button variant="primary" onClick={() => navigate('/the-game')}>
               Back to Menu
             </Button>
           )}
         </div>
 
         {current > 0 && (
-          <button className={styles.backLink} onClick={() => navigate('/')}>
+          <button className={styles.backLink} onClick={() => navigate('/the-game')}>
             ← Back to Menu
           </button>
         )}
