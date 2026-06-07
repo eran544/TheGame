@@ -48,6 +48,13 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Apply migrations on startup so Flip7DB is created/updated automatically in dev.
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<Flip7DbContext>();
+    db.Database.Migrate();
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
