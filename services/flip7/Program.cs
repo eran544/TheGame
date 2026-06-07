@@ -2,7 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using GameCommon.Auth;
 using Flip7Server.Data;
+using Flip7Server.Game;
 using Flip7Server.Hubs;
+using Flip7Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -34,6 +36,9 @@ builder.Services.AddDbContext<Flip7DbContext>(options =>
 // the SignalR access_token handshake for the Flip 7 hub.
 builder.Services.AddPlatformAuth(builder.Configuration, "/flip7hub");
 builder.Services.AddAuthorization();
+
+builder.Services.AddSingleton<IFlip7DeckShuffler, Flip7DeckShuffler>();
+builder.Services.AddScoped<IFlip7GameService, Flip7GameService>();
 
 builder.Services.AddCors(options =>
 {

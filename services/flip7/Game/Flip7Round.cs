@@ -48,6 +48,52 @@ public sealed class Flip7Round
         _random = random ?? Random.Shared;
     }
 
+    /// <summary>Captures the full round state for persistence.</summary>
+    public Flip7RoundSnapshot Capture() => new()
+    {
+        TurnOrder = _turnOrder.ToList(),
+        Lines = _turnOrder.Select(id =>
+        {
+            var l = _lines[id];
+            return new PlayerLineSnapshot
+            {
+                PlayerId = id,
+                Numbers = l.Numbers.ToList(),
+                Modifiers = l.Modifiers.ToList(),
+                HasSecondChance = l.HasSecondChance,
+                Status = l.Status,
+                AchievedFlip7 = l.AchievedFlip7,
+            };
+        }).ToList(),
+        DrawPile = _drawPile.ToList(),
+        Discard = _discard.ToList(),
+        CurrentIndex = _currentIndex,
+        Dealt = _dealt,
+        RoundEnded = RoundEnded,
+        EndReason = EndReason,
+    };
+
+    /// <summary>Rebuilds a round from a snapshot produced by <see cref="Capture"/>.</summary>
+    public static Flip7Round Restore(Flip7RoundSnapshot s, Random? random = null)
+    {
+        var round = new Flip7Round(s.TurnOrder, s.DrawPile, random);
+        foreach (var ls in s.Lines)
+        {
+            var line = round._lines[ls.PlayerId];
+            line.Numbers.AddRange(ls.Numbers);
+            line.Modifiers.AddRange(ls.Modifiers);
+            line.HasSecondChance = ls.HasSecondChance;
+            line.Status = ls.Status;
+            line.AchievedFlip7 = ls.AchievedFlip7;
+        }
+        round._discard.AddRange(s.Discard);
+        round._currentIndex = s.CurrentIndex;
+        round._dealt = s.Dealt;
+        round.RoundEnded = s.RoundEnded;
+        round.EndReason = s.EndReason;
+        return round;
+    }
+
     public IReadOnlyList<Guid> TurnOrder => _turnOrder;
     public PlayerLine Line(Guid playerId) => _lines[playerId];
     public IReadOnlyDictionary<Guid, PlayerLine> Lines => _lines;

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Flip7Server.Game;
 
 /// <summary>The three families of Flip 7 cards.</summary>
@@ -62,6 +64,7 @@ public sealed record Flip7Card
         new() { Kind = CardKind.Action, Action = action };
 
     /// <summary>The flat points an additive modifier contributes (0 for x2 / non-modifiers).</summary>
+    [JsonIgnore]
     public int ModifierAdditive => Modifier switch
     {
         ModifierKind.Plus2 => 2,
