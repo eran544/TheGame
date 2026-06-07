@@ -100,6 +100,22 @@ public sealed class Flip7Round
     public int DrawPileCount => _drawPile.Count;
     public int DiscardCount => _discard.Count;
 
+    /// <summary>Total cards that can still be drawn this round (draw pile + the discard that will reshuffle in).</summary>
+    public int DrawableCount => _drawPile.Count + _discard.Count;
+
+    /// <summary>
+    /// Number value → copies remaining in the drawable pool (draw pile + discard).
+    /// This is the unseen pool a card-counter would reason over for bust odds.
+    /// </summary>
+    public IReadOnlyDictionary<int, int> DrawableNumberCounts()
+    {
+        var counts = new Dictionary<int, int>();
+        foreach (var card in _drawPile.Concat(_discard))
+            if (card.Kind == CardKind.Number)
+                counts[card.Number!.Value] = counts.GetValueOrDefault(card.Number!.Value) + 1;
+        return counts;
+    }
+
     public bool RoundEnded { get; private set; }
     public RoundEndReason EndReason { get; private set; } = RoundEndReason.None;
 

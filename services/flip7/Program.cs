@@ -39,6 +39,12 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddSingleton<IFlip7DeckShuffler, Flip7DeckShuffler>();
 builder.Services.AddScoped<IFlip7GameService, Flip7GameService>();
+builder.Services.AddScoped<IFlip7AiClient, Flip7AiClient>();
+builder.Services.AddHttpClient("Flip7Ai", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["AIService:BaseUrl"] ?? "http://localhost:8000");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
 
 builder.Services.AddCors(options =>
 {

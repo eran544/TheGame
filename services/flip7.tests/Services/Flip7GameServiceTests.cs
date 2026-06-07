@@ -35,7 +35,17 @@ public class Flip7GameServiceTests
         public Flip7GameService Svc() =>
             new(new Flip7DbContext(new DbContextOptionsBuilder<Flip7DbContext>()
                     .UseInMemoryDatabase(_dbName).Options),
-                new FixedDeckShuffler(_deck));
+                new FixedDeckShuffler(_deck),
+                new StubAiClient("stay"));
+    }
+
+    /// <summary>Returns a fixed AI decision; solo tests never invoke it (no AI players).</summary>
+    private sealed class StubAiClient : IFlip7AiClient
+    {
+        private readonly string _action;
+        public StubAiClient(string action) => _action = action;
+        public Task<string> DecideHitOrStayAsync(Flip7AiMoveRequest request, CancellationToken ct = default) =>
+            Task.FromResult(_action);
     }
 
     [Fact]

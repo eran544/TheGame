@@ -3,6 +3,21 @@ namespace Flip7Server.DTOs;
 /// <summary>Request to create a solo (single-player) game.</summary>
 public record CreateSoloRequest(int? TargetScore);
 
+/// <summary>One AI opponent's lobby configuration (style/difficulty chosen per AI player).</summary>
+public record Flip7AiSpec
+{
+    public string? Username { get; init; }
+    public string Style { get; init; } = "balanced";
+    public string Difficulty { get; init; } = "medium";
+}
+
+/// <summary>Request to create a vs-AI or online game with AI opponents.</summary>
+public record CreateGameRequest
+{
+    public int? TargetScore { get; init; }
+    public IReadOnlyList<Flip7AiSpec> AiPlayers { get; init; } = new List<Flip7AiSpec>();
+}
+
 /// <summary>One player's view within a game state response.</summary>
 public record Flip7PlayerStateDto
 {
