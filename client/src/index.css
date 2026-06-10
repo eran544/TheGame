@@ -6,62 +6,61 @@
 /* ---------- Custom Properties ---------- */
 :root {
   /* Background layers */
-  --color-bg:            #0d0f1a;
-  --color-bg-secondary:  #131626;
-  --color-surface:       #1a1d30;
-  --color-surface-2:     #212440;
-  --color-card:          #252844;
+  --color-bg:            #06070c;
+  --color-bg-secondary:  #0d0e15;
+  --color-surface:       rgba(20, 22, 37, 0.6);
+  --color-surface-2:     rgba(30, 33, 58, 0.7);
+  --color-card:          #121422;
 
   /* Accent */
-  --color-accent:        #e94560;
-  --color-accent-hover:  #c73650;
-  --color-accent-muted:  rgba(233, 69, 96, 0.15);
+  --color-accent:        #ff3d60;
+  --color-accent-hover:  #d62846;
+  --color-accent-muted:  rgba(255, 61, 96, 0.15);
 
   /* Pile colours */
-  --color-pile-asc:      #2ecc71;
-  --color-pile-asc-dim:  rgba(46, 204, 113, 0.15);
-  --color-pile-desc:     #e94560;
-  --color-pile-desc-dim: rgba(233, 69, 96, 0.15);
+  --color-pile-asc:      #00e676;
+  --color-pile-asc-dim:  rgba(0, 230, 118, 0.12);
+  --color-pile-desc:     #ff3d60;
+  --color-pile-desc-dim: rgba(255, 61, 96, 0.12);
 
   /* Text */
-  --color-text:          #e8eaf6;
-  --color-text-secondary:#9ca3c0;
-  --color-text-muted:    #5c6080;
-  --color-text-inverse:  #0d0f1a;
+  --color-text:          #f1f3f9;
+  --color-text-secondary:#b2bacf;
+  --color-text-muted:    #676d8f;
+  --color-text-inverse:  #06070c;
 
   /* Borders */
-  --color-border:        #2d3055;
-  --color-border-focus:  #e94560;
+  --color-border:        rgba(255, 255, 255, 0.08);
+  --color-border-focus:  #ff3d60;
 
   /* Status */
-  --color-success:       #2ecc71;
-  --color-warning:       #f39c12;
-  --color-error:         #e94560;
-  --color-info:          #3498db;
+  --color-success:       #00e676;
+  --color-warning:       #ffc107;
+  --color-error:         #ff3d60;
+  --color-info:          #00b0ff;
 
   /* Typography */
-  --font-family-base:    'Segoe UI', system-ui, -apple-system, sans-serif;
-  --font-family-mono:    'Cascadia Code', 'Fira Mono', monospace;
-  --font-family-display: 'Georgia', 'Times New Roman', serif;
+  --font-family-base:    'Outfit', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-family-mono:    'Orbitron', 'Cascadia Code', 'Fira Mono', monospace;
+  --font-family-display: 'Cinzel Decorative', 'Cinzel', 'Georgia', serif;
 
-  --font-size-xs:   0.6875rem;
-  --font-size-sm:   0.8125rem;
-  --font-size-base: 1rem;
-  --font-size-md:   1.125rem;
-  --font-size-lg:   1.25rem;
-  --font-size-xl:   1.5rem;
-  --font-size-2xl:  2rem;
-  --font-size-3xl:  2.5rem;
-  --font-size-4xl:  3.5rem;
-
-  --font-weight-normal:   400;
-  --font-weight-medium:   500;
-  --font-weight-semibold: 600;
-  --font-weight-bold:     700;
-
-  --line-height-tight: 1.2;
-  --line-height-base:  1.5;
-  --line-height-loose: 1.75;
+  /* --- FLIP 7 Cyber-Neon Theme Tokens --- */
+  --neon-bg:             #07020d;
+  --neon-bg-secondary:   #10051e;
+  --neon-surface:        rgba(22, 9, 39, 0.65);
+  --neon-surface-2:      rgba(35, 17, 61, 0.75);
+  --neon-card:           #1b0d2d;
+  --neon-accent-cyan:    #00ffff;
+  --neon-accent-pink:    #ff007f;
+  --neon-accent-purple:  #8b00ff;
+  --neon-accent-yellow:  #ffff00;
+  --neon-text:           #f5f0fa;
+  --neon-text-secondary: #c5aedb;
+  --neon-border:         rgba(0, 255, 255, 0.15);
+  --neon-glow-cyan:      0 0 15px rgba(0, 255, 255, 0.45);
+  --neon-glow-pink:      0 0 15px rgba(255, 0, 127, 0.45);
+  --neon-glow-purple:    0 0 15px rgba(139, 0, 255, 0.45);
+  --neon-glow-yellow:    0 0 15px rgba(255, 238, 0, 0.45);
 
   /* Spacing (4px base) */
   --space-1:  0.25rem;
@@ -88,7 +87,7 @@
   --shadow-md:   0 4px 12px rgba(0, 0, 0, 0.5);
   --shadow-lg:   0 8px 24px rgba(0, 0, 0, 0.6);
   --shadow-xl:   0 16px 48px rgba(0, 0, 0, 0.7);
-  --shadow-glow: 0 0 20px rgba(233, 69, 96, 0.3);
+  --shadow-glow: 0 0 20px rgba(255, 61, 96, 0.3);
 
   /* Transitions */
   --transition-fast: 80ms ease;
@@ -236,3 +235,98 @@ ul, ol {
   outline: 2px solid var(--color-border-focus);
   outline-offset: 2px;
 }
+
+/* Glassmorphism Panel */
+.glass-panel {
+  background: rgba(18, 20, 34, 0.45);
+  backdrop-filter: blur(16px) saturate(120%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent-muted);
+}
+
+/* Animations */
+@keyframes cardFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes pulseAsc {
+  0%, 100% {
+    box-shadow: 0 0 8px var(--color-pile-asc-dim);
+    border-color: var(--color-pile-asc-dim);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(0, 230, 118, 0.45);
+    border-color: var(--color-pile-asc);
+  }
+}
+
+@keyframes pulseDesc {
+  0%, 100% {
+    box-shadow: 0 0 8px var(--color-pile-desc-dim);
+    border-color: var(--color-pile-desc-dim);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(255, 61, 96, 0.45);
+    border-color: var(--color-pile-desc);
+  }
+}
+
+@keyframes neonPulseCyan {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(0, 255, 255, 0.2), inset 0 0 5px rgba(0, 255, 255, 0.1);
+    border-color: rgba(0, 255, 255, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.6), inset 0 0 10px rgba(0, 255, 255, 0.3);
+    border-color: var(--neon-accent-cyan);
+  }
+}
+
+@keyframes neonPulsePink {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(255, 0, 127, 0.2), inset 0 0 5px rgba(255, 0, 127, 0.1);
+    border-color: rgba(255, 0, 127, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(255, 0, 127, 0.6), inset 0 0 10px rgba(255, 0, 127, 0.3);
+    border-color: var(--neon-accent-pink);
+  }
+}
+
+@keyframes screenShake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}
+
+@keyframes bustFlash {
+  0%, 100% { background-color: var(--neon-bg); }
+  50% { background-color: rgba(255, 0, 127, 0.25); }
+}
+
+@keyframes winFlash {
+  0%, 100% { background-color: var(--neon-bg); }
+  50% { background-color: rgba(0, 255, 255, 0.2); }
+}
+

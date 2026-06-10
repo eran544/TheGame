@@ -4,8 +4,9 @@
   align-items: center;
   justify-content: center;
   flex: 1;
-  padding: var(--space-12) var(--space-6);
+  padding: var(--space-16) var(--space-6);
   text-align: center;
+  background-color: var(--color-bg);
 }
 
 .titleBlock {
@@ -14,30 +15,32 @@
 
 .title {
   font-family: var(--font-family-display);
-  font-size: var(--font-size-4xl);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.12em;
+  font-size: var(--font-size-3xl);
+  font-weight: 800;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
   color: var(--color-text);
   line-height: var(--line-height-tight);
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--space-2);
+  text-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
 }
 
 .welcome {
   font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
 }
 
 .welcome strong {
-  color: var(--color-text-secondary);
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
 }
 
 .grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: var(--space-6);
+  gap: var(--space-8);
   width: 100%;
-  max-width: 640px;
+  max-width: 720px;
 }
 
 @media (min-width: 640px) {
@@ -51,30 +54,76 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-3);
-  padding: var(--space-8) var(--space-6);
+  padding: var(--space-8) var(--space-8);
   text-align: left;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  background: rgba(18, 20, 34, 0.45);
+  backdrop-filter: blur(12px) saturate(120%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-xl);
   cursor: pointer;
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  transition: all var(--transition-slow);
+  box-shadow: var(--shadow-lg);
+  position: relative;
+  overflow: hidden;
 }
 
-.card:hover {
+.theGameCard:hover {
   border-color: var(--color-accent);
-  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(255, 61, 96, 0.35);
+  transform: translateY(-6px);
+  background: rgba(255, 61, 96, 0.04);
+}
+
+.flip7Card:hover {
+  border-color: var(--neon-accent-cyan);
+  box-shadow: 0 8px 30px rgba(0, 255, 255, 0.35);
+  transform: translateY(-6px);
+  background: rgba(0, 255, 255, 0.04);
+}
+
+.badge {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-sm);
+}
+
+.theGameCard .badge {
+  color: var(--color-accent);
+  background: var(--color-accent-muted);
+}
+
+.flip7Card .badge {
+  color: var(--neon-accent-cyan);
+  background: rgba(0, 255, 255, 0.12);
 }
 
 .cardTitle {
   font-family: var(--font-family-display);
-  font-size: var(--font-size-2xl);
-  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-xl);
+  font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-text);
+  margin-top: var(--space-1);
+}
+
+.theGameCard .cardTitle {
+  font-family: var(--font-family-display);
+}
+
+.flip7Card .cardTitle {
+  font-family: var(--font-family-mono);
+  letter-spacing: 0.05em;
+  color: var(--neon-text);
 }
 
 .cardTagline {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
+  line-height: var(--line-height-base);
 }
+

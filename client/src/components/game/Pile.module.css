@@ -4,78 +4,97 @@
   align-items: center;
   justify-content: center;
   gap: 0.25rem;
-  width: 100px;
-  height: 130px;
+  width: 104px;
+  height: 140px;
   border-radius: var(--radius-lg);
-  border: 2px solid var(--color-border);
-  background: var(--color-surface);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(22, 25, 44, 0.5);
+  backdrop-filter: blur(8px);
   cursor: default;
-  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+  transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s, background 0.2s;
+  position: relative;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
 }
 
 .pile:disabled {
-  opacity: 0.6;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
 .ascending {
-  border-color: var(--color-pile-asc-dim);
-  background: color-mix(in srgb, var(--color-surface) 85%, var(--color-pile-asc) 15%);
+  border-color: rgba(0, 230, 118, 0.15);
+  background: rgba(0, 230, 118, 0.03);
 }
 
 .descending {
-  border-color: var(--color-pile-desc-dim);
-  background: color-mix(in srgb, var(--color-surface) 85%, var(--color-pile-desc) 15%);
+  border-color: rgba(255, 61, 96, 0.15);
+  background: rgba(255, 61, 96, 0.03);
 }
 
 .active {
   cursor: pointer;
   border-color: var(--color-accent);
-  box-shadow: 0 0 12px var(--color-accent-muted);
 }
 
 .active.ascending {
-  border-color: var(--color-pile-asc);
-  box-shadow: 0 0 12px rgba(46, 204, 113, 0.3);
+  animation: pulseAsc 2s infinite ease-in-out;
 }
 
 .active.ascending:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 6px 20px rgba(46, 204, 113, 0.4);
+  transform: translateY(-6px) scale(1.03);
+  box-shadow: 0 8px 25px rgba(0, 230, 118, 0.45), inset 0 0 8px rgba(0, 230, 118, 0.1);
+  background: rgba(0, 230, 118, 0.08);
 }
 
 .active.descending {
-  border-color: var(--color-pile-desc);
-  box-shadow: 0 0 12px rgba(233, 69, 96, 0.3);
+  animation: pulseDesc 2s infinite ease-in-out;
 }
 
 .active.descending:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 6px 20px rgba(233, 69, 96, 0.4);
+  transform: translateY(-6px) scale(1.03);
+  box-shadow: 0 8px 25px rgba(255, 61, 96, 0.45), inset 0 0 8px rgba(255, 61, 96, 0.1);
+  background: rgba(255, 61, 96, 0.08);
 }
 
 .label {
+  font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: 0.05em;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--color-text-secondary);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 
-.ascending .label { color: var(--color-pile-asc); }
-.descending .label { color: var(--color-pile-desc); }
+.ascending .label {
+  color: var(--color-pile-asc);
+}
+
+.descending .label {
+  color: var(--color-pile-desc);
+}
 
 .arrow {
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-md);
   color: var(--color-text-muted);
 }
 
-.ascending .arrow { color: var(--color-pile-asc); }
-.descending .arrow { color: var(--color-pile-desc); }
+.ascending .arrow {
+  color: var(--color-pile-asc);
+  text-shadow: 0 0 8px rgba(0, 230, 118, 0.5);
+}
+
+.descending .arrow {
+  color: var(--color-pile-desc);
+  text-shadow: 0 0 8px rgba(255, 61, 96, 0.5);
+}
 
 .topValue {
-  font-size: var(--font-size-2xl);
-  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-3xl);
+  font-weight: 800;
   font-family: var(--font-family-mono);
   color: var(--color-text);
+  margin-top: 2px;
+  text-shadow: 0 2px 5px rgba(0, 0, 0, 0.8), 0 0 15px rgba(255, 255, 255, 0.1);
 }
+

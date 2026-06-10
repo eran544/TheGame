@@ -43,6 +43,8 @@ const RegisterPage: React.FC = () => {
   return (
     <Layout showHeader={false}>
       <div className={styles.page}>
+        <div className={styles.orb1} />
+        <div className={styles.orb2} />
         <div className={styles.card}>
           <h1 className={styles.title}>
             The <span>Game</span>
