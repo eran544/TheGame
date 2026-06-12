@@ -330,3 +330,14 @@ ul, ol {
   50% { background-color: rgba(0, 255, 255, 0.2); }
 }
 
+/* Respect the user's motion preference: collapse all decorative animation. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+

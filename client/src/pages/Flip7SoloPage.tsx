@@ -81,6 +81,8 @@ const Flip7SoloPage: React.FC = () => {
   return (
     <Layout showHeader>
       <div className={pageClass}>
+        <div className={styles.orbCyan} />
+        <div className={styles.orbPink} />
         <div className={styles.headerArea}>
           <div className={styles.titleBlock}>
             <h1 className={styles.title}>

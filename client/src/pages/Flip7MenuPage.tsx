@@ -34,6 +34,8 @@ const Flip7MenuPage: React.FC = () => {
   return (
     <Layout showHeader>
       <div className={styles.page}>
+        <div className={styles.orbCyan} />
+        <div className={styles.orbPink} />
         <div className={styles.titleBlock}>
           <h1 className={styles.title}>
             Flip <span>7</span>

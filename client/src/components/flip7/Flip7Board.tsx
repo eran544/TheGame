@@ -1,8 +1,14 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Button from '../ui/Button';
 import type { Flip7GameState, Flip7PlayerState } from '../../types/flip7';
 import { MODIFIER_LABELS } from '../../types/flip7';
 import styles from './Flip7Board.module.css';
+
+interface Announcement {
+  kind: 'flip7' | 'bust' | 'frozen';
+  text: string;
+  sub?: string;
+}
 
 interface Flip7BoardProps {
   state: Flip7GameState;
@@ -36,6 +42,37 @@ const Flip7Board: React.FC<Flip7BoardProps> = ({
   useEffect(() => {
     feedEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [feed]);
+
+  // Big transient overlays for the dramatic moments, derived by diffing
+  // consecutive authoritative snapshots (mirrors the feed derivation).
+  const [announcement, setAnnouncement] = useState<Announcement | null>(null);
+  const prevRef = useRef<Flip7GameState | null>(null);
+  useEffect(() => {
+    const prev = prevRef.current;
+    prevRef.current = state;
+    if (!prev || prev.id !== state.id) return;
+
+    const prevById = new Map(prev.players.map((p) => [p.id, p]));
+    let next: Announcement | null = null;
+    for (const p of state.players) {
+      const was = prevById.get(p.id);
+      if (!was) continue;
+      if (p.achievedFlip7 && !was.achievedFlip7) {
+        next = { kind: 'flip7', text: '⭐ FLIP 7! ⭐', sub: `${p.username} +15 bonus` };
+        break;
+      }
+      if (p.status === 'Busted' && was.status !== 'Busted' && p.userId === myUserId && !p.isAi) {
+        next = { kind: 'bust', text: '💥 BUST!', sub: 'Duplicate number — 0 this round' };
+      } else if (p.status === 'Frozen' && was.status !== 'Frozen' && p.userId === myUserId && !p.isAi) {
+        next = { kind: 'frozen', text: '❄️ FROZEN', sub: `${p.roundScore} points banked` };
+      }
+    }
+    if (next) {
+      setAnnouncement(next);
+      const timer = setTimeout(() => setAnnouncement(null), 1800);
+      return () => clearTimeout(timer);
+    }
+  }, [state, myUserId]);
 
   const me = state.players.find((p) => p.userId === myUserId && !p.isAi);
   const current = state.players.find((p) => p.id === state.currentPlayerId);
@@ -79,11 +116,14 @@ const Flip7Board: React.FC<Flip7BoardProps> = ({
               <div className={styles.scoreValues}>
                 <div className={styles.scoreGroup}>
                   <span className={styles.scoreLabel}>Total</span>
-                  <span className={styles.scoreVal}>{p.cumulativeScore}</span>
+                  {/* Keying on the value remounts the span, replaying the pop. */}
+                  <span key={p.cumulativeScore} className={styles.scoreVal}>
+                    {p.cumulativeScore}
+                  </span>
                 </div>
                 <div className={styles.scoreGroup}>
                   <span className={styles.scoreLabel}>Round</span>
-                  <span className={styles.roundVal}>
+                  <span key={`${p.roundScore}-${p.status}`} className={styles.roundVal}>
                     {p.status === 'Busted' ? 'BUST' : p.roundScore}
                   </span>
                 </div>
@@ -101,13 +141,21 @@ const Flip7Board: React.FC<Flip7BoardProps> = ({
             <div className={styles.rowLabel}>{p.username}&rsquo;s line</div>
             <div className={styles.cardLine}>
               {p.numbers.map((n, i) => (
-                <div key={`n-${i}`} className={styles.numCard}>
+                <div
+                  key={`n-${i}`}
+                  className={styles.numCard}
+                  style={{ animationDelay: `${Math.min(i, 6) * 70}ms` }}
+                >
                   <span className={styles.cornerPip}>{n}</span>
                   <span className={styles.mainValue}>{n}</span>
                 </div>
               ))}
               {p.modifiers.map((m, i) => (
-                <div key={`m-${i}`} className={styles.modifierCard}>
+                <div
+                  key={`m-${i}`}
+                  className={styles.modifierCard}
+                  style={{ animationDelay: `${Math.min(i, 6) * 70}ms` }}
+                >
                   <span className={styles.cornerPip}>{MODIFIER_LABELS[m]}</span>
                   <span className={styles.mainValue}>{MODIFIER_LABELS[m]}</span>
                 </div>
@@ -197,6 +245,23 @@ const Flip7Board: React.FC<Flip7BoardProps> = ({
           </div>
         )}
       </div>
+
+      {announcement && (
+        <div
+          className={[
+            styles.announceOverlay,
+            announcement.kind === 'flip7' ? styles.announceFlip7 : '',
+            announcement.kind === 'bust' ? styles.announceBust : '',
+            announcement.kind === 'frozen' ? styles.announceFrozen : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          aria-live="assertive"
+        >
+          <div className={styles.announceText}>{announcement.text}</div>
+          {announcement.sub && <div className={styles.announceSub}>{announcement.sub}</div>}
+        </div>
+      )}
     </div>
   );
 };

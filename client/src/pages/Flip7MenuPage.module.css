@@ -9,6 +9,41 @@
   max-width: 560px;
   margin: 0 auto;
   min-height: calc(100vh - var(--header-height));
+  position: relative;
+}
+
+/* Floating neon ambience */
+.orbCyan,
+.orbPink {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(120px);
+  z-index: -1;
+  opacity: 0.14;
+  pointer-events: none;
+}
+
+.orbCyan {
+  width: 420px;
+  height: 420px;
+  background: var(--neon-accent-cyan);
+  top: -120px;
+  left: -120px;
+  animation: orbDrift 22s infinite alternate ease-in-out;
+}
+
+.orbPink {
+  width: 360px;
+  height: 360px;
+  background: var(--neon-accent-pink);
+  bottom: -100px;
+  right: -100px;
+  animation: orbDrift 28s infinite alternate-reverse ease-in-out;
+}
+
+@keyframes orbDrift {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(80px, 60px) scale(1.15); }
 }
 
 .titleBlock {

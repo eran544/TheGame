@@ -112,6 +112,7 @@
   font-weight: 900;
   color: var(--neon-accent-cyan);
   text-shadow: 0 0 8px rgba(0, 255, 255, 0.4);
+  animation: scorePop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .roundVal {
@@ -120,6 +121,12 @@
   font-weight: 700;
   color: var(--neon-accent-yellow);
   text-shadow: 0 0 6px rgba(255, 255, 0, 0.4);
+  animation: scorePop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes scorePop {
+  0% { transform: scale(1.6); filter: brightness(2); }
+  100% { transform: scale(1); filter: brightness(1); }
 }
 
 .playerStatusText {
@@ -439,4 +446,59 @@
 .rankRow:first-child {
   color: var(--neon-accent-yellow);
   text-shadow: 0 0 6px rgba(255, 238, 0, 0.4);
+}
+
+/* ---------- Announcement Overlays ---------- */
+.announceOverlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  pointer-events: none;
+  z-index: 600;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(3px);
+  animation: announceIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), announceOut 0.4s ease 1.4s forwards;
+}
+
+.announceText {
+  font-family: var(--font-family-mono);
+  font-size: clamp(2.5rem, 8vw, 5rem);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.announceSub {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-lg);
+  color: var(--neon-text-secondary);
+  letter-spacing: 0.08em;
+}
+
+.announceFlip7 .announceText {
+  color: var(--neon-accent-yellow);
+  text-shadow: 0 0 30px rgba(255, 238, 0, 0.8), 0 0 90px rgba(255, 238, 0, 0.4);
+}
+
+.announceBust .announceText {
+  color: var(--neon-accent-pink);
+  text-shadow: 0 0 30px rgba(255, 0, 127, 0.8), 0 0 90px rgba(255, 0, 127, 0.4);
+}
+
+.announceFrozen .announceText {
+  color: #64b4ff;
+  text-shadow: 0 0 30px rgba(100, 180, 255, 0.8), 0 0 90px rgba(100, 180, 255, 0.4);
+}
+
+@keyframes announceIn {
+  from { opacity: 0; transform: scale(1.25); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes announceOut {
+  to { opacity: 0; }
 }
