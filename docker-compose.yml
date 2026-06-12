@@ -57,6 +57,11 @@ services:
       - ./shared:/src/shared
       - /src/services/auth/bin
       - /src/services/auth/obj
+      # GameCommon build output must be container-private: the host dotnet and
+      # the other service containers build the same mounted project, and shared
+      # bin/obj causes file-lock collisions that abort dotnet watch.
+      - /src/shared/GameCommon/bin
+      - /src/shared/GameCommon/obj
     command: ["dotnet", "watch", "run", "--urls", "http://0.0.0.0:8080"]
 
   # The Game service (owns TheGameDB)
@@ -86,6 +91,8 @@ services:
       - ./shared:/src/shared
       - /src/services/the-game/bin
       - /src/services/the-game/obj
+      - /src/shared/GameCommon/bin
+      - /src/shared/GameCommon/obj
     command: ["dotnet", "watch", "run", "--urls", "http://0.0.0.0:8080"]
 
   # Flip 7 service (owns Flip7DB — schema in Phase 2)
@@ -115,6 +122,8 @@ services:
       - ./shared:/src/shared
       - /src/services/flip7/bin
       - /src/services/flip7/obj
+      - /src/shared/GameCommon/bin
+      - /src/shared/GameCommon/obj
     command: ["dotnet", "watch", "run", "--urls", "http://0.0.0.0:8080"]
 
   # Python AI Service
