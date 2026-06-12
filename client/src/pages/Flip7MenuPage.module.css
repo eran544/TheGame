@@ -1,0 +1,121 @@
+/* FLIP 7 — Menu (cyber-neon) */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-10) var(--space-4);
+  max-width: 560px;
+  margin: 0 auto;
+  min-height: calc(100vh - var(--header-height));
+}
+
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  text-align: center;
+}
+
+.title {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-3xl);
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--neon-text);
+  text-shadow: 0 0 18px rgba(0, 255, 255, 0.5);
+}
+
+.title span {
+  color: var(--neon-accent-cyan);
+  text-shadow: 0 0 25px rgba(0, 255, 255, 0.8), 0 0 60px rgba(0, 255, 255, 0.3);
+}
+
+.tagline {
+  font-size: var(--font-size-xs);
+  color: var(--neon-text-secondary);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 360px;
+}
+
+.joinRow {
+  display: flex;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 360px;
+}
+
+.joinInput {
+  flex: 1;
+  padding: var(--space-3) var(--space-4);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--neon-border);
+  border-radius: var(--radius-md);
+  color: var(--neon-text);
+  font-size: var(--font-size-sm);
+}
+
+.joinInput:focus {
+  outline: none;
+  border-color: var(--neon-accent-cyan);
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+}
+
+.error {
+  color: var(--neon-accent-pink);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+.rulesCard {
+  width: 100%;
+  background: var(--neon-surface);
+  backdrop-filter: blur(16px) saturate(120%);
+  border: 1px solid var(--neon-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.rulesCard h2 {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-lg);
+  font-weight: 900;
+  color: var(--neon-accent-cyan);
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.4);
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+.bulletList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  font-size: var(--font-size-sm);
+  color: var(--neon-text-secondary);
+}
+
+.bulletList div {
+  padding: var(--space-2) var(--space-3);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.bulletList strong {
+  color: var(--neon-text);
+}

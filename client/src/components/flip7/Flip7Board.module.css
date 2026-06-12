@@ -1,0 +1,442 @@
+/* ============================================================
+   FLIP 7 — Board (scoreboard, lines, controls, feed)
+   Cyber-neon theme; tokens defined in index.css
+   ============================================================ */
+
+.gameContainer {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/* ---------- Scoreboard ---------- */
+.scoreboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.scoreCard {
+  background: var(--neon-surface);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--neon-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  transition: all var(--transition-slow);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.activeScoreCard {
+  border-color: var(--neon-accent-cyan);
+  box-shadow: var(--neon-glow-cyan);
+  animation: neonPulseCyan 2s infinite ease-in-out;
+}
+
+.bustedScoreCard {
+  border-color: var(--neon-accent-pink);
+  opacity: 0.6;
+  background: rgba(255, 0, 127, 0.04);
+}
+
+.stayedScoreCard {
+  border-color: rgba(255, 255, 0, 0.2);
+  opacity: 0.75;
+}
+
+.scoreHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.playerName {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--neon-text);
+  letter-spacing: 0.05em;
+}
+
+.aiTag {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--neon-accent-purple);
+  background: rgba(139, 0, 255, 0.12);
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-sm);
+  text-transform: capitalize;
+  letter-spacing: 0.03em;
+}
+
+.dealerTag {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--neon-accent-yellow);
+  background: rgba(255, 255, 0, 0.08);
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.scoreValues {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.scoreGroup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  flex: 1;
+}
+
+.scoreLabel {
+  font-size: var(--font-size-xs);
+  color: var(--neon-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.scoreVal {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xl);
+  font-weight: 900;
+  color: var(--neon-accent-cyan);
+  text-shadow: 0 0 8px rgba(0, 255, 255, 0.4);
+}
+
+.roundVal {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--neon-accent-yellow);
+  text-shadow: 0 0 6px rgba(255, 255, 0, 0.4);
+}
+
+.playerStatusText {
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--neon-text-secondary);
+  min-height: 1rem;
+}
+
+/* ---------- Playboard / Card Lines ---------- */
+.playboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  background: rgba(7, 2, 13, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6) var(--space-5);
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.6);
+}
+
+.playerBoardRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.rowLabel {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--neon-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.cardLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  min-height: 56px;
+}
+
+.waitingText {
+  font-size: var(--font-size-xs);
+  color: var(--neon-text-secondary);
+  font-style: italic;
+  opacity: 0.6;
+}
+
+/* ---------- Cards ---------- */
+.numCard,
+.shieldCard,
+.modifierCard {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 68px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-family-mono);
+  font-weight: 700;
+  position: relative;
+  user-select: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: default;
+  animation: cardDealIn 0.3s ease;
+}
+
+.numCard:hover,
+.shieldCard:hover,
+.modifierCard:hover {
+  transform: translateY(-3px);
+}
+
+.numCard {
+  background: linear-gradient(145deg, #1a1035 0%, #0d0820 100%);
+  border: 1px solid rgba(0, 255, 255, 0.25);
+  color: var(--neon-accent-cyan);
+  box-shadow: 0 2px 8px rgba(0, 255, 255, 0.15);
+}
+
+.numCard:hover {
+  box-shadow: 0 4px 14px rgba(0, 255, 255, 0.3);
+}
+
+.shieldCard {
+  background: linear-gradient(145deg, #1a1a08 0%, #101005 100%);
+  border: 1px solid rgba(255, 238, 0, 0.3);
+  color: var(--neon-accent-yellow);
+  box-shadow: 0 2px 8px rgba(255, 238, 0, 0.12);
+}
+
+.shieldCard:hover {
+  box-shadow: 0 4px 14px rgba(255, 238, 0, 0.25);
+}
+
+.modifierCard {
+  background: linear-gradient(145deg, #2a0a1e 0%, #180510 100%);
+  border: 1px solid rgba(255, 0, 127, 0.3);
+  color: var(--neon-accent-pink);
+  box-shadow: 0 2px 8px rgba(255, 0, 127, 0.12);
+}
+
+.modifierCard:hover {
+  box-shadow: 0 4px 14px rgba(255, 0, 127, 0.3);
+}
+
+.mainValue {
+  font-size: var(--font-size-md);
+  line-height: 1;
+  text-shadow: 0 0 6px currentColor;
+}
+
+.cornerPip {
+  position: absolute;
+  top: 3px;
+  left: 5px;
+  font-size: 0.5rem;
+  opacity: 0.6;
+  line-height: 1;
+}
+
+@keyframes cardDealIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) rotateY(70deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotateY(0);
+  }
+}
+
+/* ---------- Interaction Area ---------- */
+.interactionArea {
+  display: flex;
+  gap: var(--space-6);
+  width: 100%;
+}
+
+@media (max-width: 700px) {
+  .interactionArea {
+    flex-direction: column;
+  }
+}
+
+.logPanel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.logPanel h3 {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--neon-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.logList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-4);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-md);
+  scrollbar-color: rgba(0, 255, 255, 0.2) transparent;
+  scrollbar-width: thin;
+}
+
+.logItem {
+  font-size: var(--font-size-xs);
+  color: var(--neon-text-secondary);
+  line-height: 1.5;
+  padding: 0.15rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.logItem:last-child {
+  border-bottom: none;
+}
+
+/* ---------- Controls ---------- */
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  align-items: center;
+  justify-content: center;
+  min-width: 160px;
+}
+
+.actionBtn {
+  font-family: var(--font-family-mono);
+  font-weight: 900;
+  font-size: var(--font-size-lg);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: var(--space-4) var(--space-8);
+  border-radius: var(--radius-lg);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  width: 100%;
+  min-width: 140px;
+  text-align: center;
+}
+
+.actionBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  filter: grayscale(0.8);
+}
+
+.hitBtn {
+  background: rgba(0, 255, 255, 0.08);
+  border-color: var(--neon-accent-cyan);
+  color: var(--neon-accent-cyan);
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.6);
+  box-shadow: 0 0 15px rgba(0, 255, 255, 0.2), inset 0 0 10px rgba(0, 255, 255, 0.05);
+}
+
+.hitBtn:not(:disabled):hover {
+  background: rgba(0, 255, 255, 0.15);
+  box-shadow: 0 0 30px rgba(0, 255, 255, 0.5), inset 0 0 15px rgba(0, 255, 255, 0.1);
+  transform: scale(1.05);
+}
+
+.hitBtn:not(:disabled):active {
+  transform: scale(0.97);
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+}
+
+.stayBtn {
+  background: rgba(255, 0, 127, 0.08);
+  border-color: var(--neon-accent-pink);
+  color: var(--neon-accent-pink);
+  text-shadow: 0 0 10px rgba(255, 0, 127, 0.6);
+  box-shadow: 0 0 15px rgba(255, 0, 127, 0.2), inset 0 0 10px rgba(255, 0, 127, 0.05);
+}
+
+.stayBtn:not(:disabled):hover {
+  background: rgba(255, 0, 127, 0.15);
+  box-shadow: 0 0 30px rgba(255, 0, 127, 0.5), inset 0 0 15px rgba(255, 0, 127, 0.1);
+  transform: scale(1.05);
+}
+
+.stayBtn:not(:disabled):active {
+  transform: scale(0.97);
+  box-shadow: 0 0 10px rgba(255, 0, 127, 0.3);
+}
+
+.turnHint {
+  font-size: var(--font-size-xs);
+  color: var(--neon-text-secondary);
+  text-align: center;
+}
+
+.turnHint strong {
+  color: var(--neon-accent-cyan);
+}
+
+/* ---------- Round / Game-over Controls ---------- */
+.roundControls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  align-items: center;
+  justify-content: center;
+  min-width: 200px;
+}
+
+.roundSummaryAlert {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--neon-accent-yellow);
+  text-align: center;
+  padding: var(--space-3) var(--space-4);
+  background: rgba(255, 238, 0, 0.05);
+  border: 1px solid rgba(255, 238, 0, 0.15);
+  border-radius: var(--radius-md);
+  text-shadow: 0 0 5px rgba(255, 238, 0, 0.3);
+}
+
+.finalRanking {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  min-width: 200px;
+}
+
+.rankRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  color: var(--neon-text);
+  padding: var(--space-1) var(--space-3);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--radius-sm);
+}
+
+.rankRow:first-child {
+  color: var(--neon-accent-yellow);
+  text-shadow: 0 0 6px rgba(255, 238, 0, 0.4);
+}
