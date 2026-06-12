@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
-import apiClient from '../../api/apiClient';
+import { authClient } from '../../api/apiClient';
 import type { AuthResult, LoginRequest, RegisterRequest, User } from '../../types/user';
 
 // ---------- helpers ----------
@@ -71,7 +71,7 @@ export const loginAsync = createAsyncThunk<
   { rejectValue: string }
 >('auth/login', async (credentials, { rejectWithValue }) => {
   try {
-    const result = await apiClient.post<AuthResult>(
+    const result = await authClient.post<AuthResult>(
       '/api/auth/login',
       credentials
     );
@@ -87,7 +87,7 @@ export const registerAsync = createAsyncThunk<
   { rejectValue: string }
 >('auth/register', async (request, { rejectWithValue }) => {
   try {
-    const result = await apiClient.post<AuthResult>(
+    const result = await authClient.post<AuthResult>(
       '/api/auth/register',
       request
     );
@@ -104,7 +104,7 @@ export const logoutAsync = createAsyncThunk<
 >('auth/logout', async (_, { getState, rejectWithValue }) => {
   try {
     const token = getState().auth.token ?? undefined;
-    await apiClient.post('/api/auth/logout', {}, token);
+    await authClient.post('/api/auth/logout', {}, token);
   } catch (err) {
     // Even if the server call fails we still want to clear local state,
     // so we resolve rather than reject.

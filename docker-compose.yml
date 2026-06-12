@@ -144,12 +144,11 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - REACT_APP_API_BASE_URL=http://localhost:5001
-      - REACT_APP_SIGNALR_HUB_URL=http://localhost:5001/gamehub
-      # Per-service URLs (used once the client URL split lands):
-      - REACT_APP_AUTH_URL=http://localhost:5002
-      - REACT_APP_THEGAME_URL=http://localhost:5001
-      - REACT_APP_FLIP7_URL=http://localhost:5003
+      # The client calls same-origin /svc/* paths; the dev server proxies them
+      # to the service containers (see client/vite.config.ts).
+      - PROXY_AUTH_TARGET=http://auth:8080
+      - PROXY_THEGAME_TARGET=http://server:8080
+      - PROXY_FLIP7_TARGET=http://flip7:8080
     volumes:
       - ./client:/app
       - /app/node_modules
