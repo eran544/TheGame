@@ -12,6 +12,7 @@ export interface Flip7HubApi {
   start: () => Promise<void>;
   hit: () => Promise<void>;
   stay: () => Promise<void>;
+  chooseTarget: (targetPlayerId: string) => Promise<void>;
   nextRound: () => Promise<void>;
 }
 
@@ -76,11 +77,11 @@ export function useFlip7Hub(gameId: string | null, token: string | null): Flip7H
   }, [gameId, token]);
 
   const invoke = useCallback(
-    async (method: string) => {
+    async (method: string, ...args: unknown[]) => {
       const connection = connectionRef.current;
       if (!gameId || !connection || connection.state !== HubConnectionState.Connected) return;
       try {
-        await connection.invoke(method, gameId);
+        await connection.invoke(method, gameId, ...args);
       } catch (err) {
         setError((err as Error).message);
       }
@@ -97,6 +98,7 @@ export function useFlip7Hub(gameId: string | null, token: string | null): Flip7H
     start: useCallback(() => invoke('Start'), [invoke]),
     hit: useCallback(() => invoke('Hit'), [invoke]),
     stay: useCallback(() => invoke('Stay'), [invoke]),
+    chooseTarget: useCallback((targetPlayerId: string) => invoke('ChooseTarget', targetPlayerId), [invoke]),
     nextRound: useCallback(() => invoke('NextRound'), [invoke]),
   };
 }

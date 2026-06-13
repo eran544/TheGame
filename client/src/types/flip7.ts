@@ -27,6 +27,37 @@ export interface Flip7PlayerState {
   roundScore: number;
 }
 
+export type Flip7EventType =
+  | 'NumberAdded'
+  | 'ModifierAdded'
+  | 'ActionDrawn'
+  | 'Busted'
+  | 'SecondChanceGained'
+  | 'SecondChancePassed'
+  | 'SecondChanceUsed'
+  | 'SecondChanceDiscarded'
+  | 'Frozen'
+  | 'FlipThreeStarted'
+  | 'Flip7Achieved'
+  | 'Stayed'
+  | 'RoundEnded';
+
+export interface Flip7Event {
+  type: Flip7EventType;
+  playerId: string;
+  sourcePlayerId?: string | null;
+  /** Card label: "7", "+10", "x2", "Freeze", "FlipThree". */
+  card?: string | null;
+  detail?: string | null;
+}
+
+/** An action card (Freeze / Flip Three) awaiting its drawer's target choice. */
+export interface Flip7PendingAction {
+  action: 'Freeze' | 'FlipThree';
+  drawerId: string;
+  candidateIds: string[];
+}
+
 export interface Flip7GameState {
   id: string;
   mode: Flip7Mode;
@@ -39,6 +70,9 @@ export interface Flip7GameState {
   roundEndReason: string;
   winnerId?: string | null;
   players: Flip7PlayerState[];
+  pendingAction?: Flip7PendingAction | null;
+  events?: Flip7Event[];
+  actionId?: string | null;
 }
 
 export interface Flip7AiSpec {

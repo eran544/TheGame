@@ -1,19 +1,19 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import Button from '../components/ui/Button';
 import Flip7Board from '../components/flip7/Flip7Board';
 import useAppSelector from '../hooks/useAppSelector';
 import { useFlip7Hub } from '../hooks/useFlip7Hub';
-import type { Flip7GameState } from '../types/flip7';
-import { deriveFlip7Events } from '../utils/flip7Events';
 import styles from './Flip7GamePage.module.css';
 
 /**
  * Vs-AI and online Flip 7, driven entirely by the /flip7hub SignalR
  * connection: the server broadcasts the authoritative state after every
  * action (including AI turns). While an online game is in its lobby this
- * page shows the joined players and lets the creator start the game.
+ * page shows the joined players and lets the creator start the game. The feed,
+ * celebration overlays, and target picker are all handled by Flip7Board from
+ * the server's event stream.
  */
 const Flip7GamePage: React.FC = () => {
   const { gameId } = useParams<{ gameId: string }>();
@@ -23,31 +23,7 @@ const Flip7GamePage: React.FC = () => {
   const hub = useFlip7Hub(gameId ?? null, token);
   const { state } = hub;
 
-  const [feed, setFeed] = useState<string[]>([]);
-  const [effect, setEffect] = useState<'none' | 'bust' | 'win'>('none');
   const [copied, setCopied] = useState(false);
-  const prevState = useRef<Flip7GameState | null>(null);
-
-  // Derive the feed + screen effects from each authoritative snapshot.
-  useEffect(() => {
-    if (!state) return;
-    const events = deriveFlip7Events(prevState.current, state);
-    if (events.length > 0) setFeed((old) => [...old, ...events]);
-
-    if (user) {
-      const me = state.players.find((p) => p.userId === user.id && !p.isAi);
-      const wasMe = prevState.current?.players.find((p) => p.userId === user.id && !p.isAi);
-      if (me && wasMe && me.status === 'Busted' && wasMe.status !== 'Busted') {
-        setEffect('bust');
-        setTimeout(() => setEffect('none'), 900);
-      } else if (me && me.achievedFlip7 && !wasMe?.achievedFlip7) {
-        setEffect('win');
-        setTimeout(() => setEffect('none'), 1200);
-      }
-    }
-
-    prevState.current = state;
-  }, [state, user]);
 
   // If I'm not seated yet in an online lobby, join it.
   useEffect(() => {
@@ -75,17 +51,9 @@ const Flip7GamePage: React.FC = () => {
   const isCreator =
     !!state && !!user && state.players.some((p) => p.seat === 0 && p.userId === user.id && !p.isAi);
 
-  const pageClass = [
-    styles.page,
-    effect === 'bust' ? styles.effectBust : '',
-    effect === 'win' ? styles.effectWin : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
-
   return (
     <Layout showHeader>
-      <div className={pageClass}>
+      <div className={styles.page}>
         <div className={styles.orbCyan} />
         <div className={styles.orbPink} />
         <div className={styles.headerArea}>
@@ -152,9 +120,9 @@ const Flip7GamePage: React.FC = () => {
           <Flip7Board
             state={state}
             myUserId={user.id}
-            feed={feed}
             onHit={hub.hit}
             onStay={hub.stay}
+            onChooseTarget={hub.chooseTarget}
             onNextRound={hub.nextRound}
             onExit={() => navigate('/flip7')}
           />

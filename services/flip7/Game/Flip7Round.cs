@@ -9,12 +9,18 @@ public enum RoundEndReason
 }
 
 /// <summary>
-/// Chooses the target of an action card when a genuine choice exists. Only
-/// consulted when more than one candidate is available — solo play and
-/// last-player situations resolve automatically (the single candidate, i.e.
-/// self), so the chooser is never called there.
+/// Chooses the target of a drawn Freeze / Flip Three (and of a passed Second
+/// Chance when more than one player can receive it). Returning a player id
+/// resolves immediately; returning null suspends the round in a
+/// <see cref="Flip7Round.PendingAction"/> state until
+/// <see cref="Flip7Round.ResolveTarget"/> supplies the choice — that is how
+/// human players get an interactive picker even when the only legal target is
+/// themselves.
 /// </summary>
-public delegate Guid TargetChooser(ActionKind action, Guid drawingPlayer, IReadOnlyList<Guid> candidates);
+public delegate Guid? TargetChooser(ActionKind action, Guid drawingPlayer, IReadOnlyList<Guid> candidates);
+
+/// <summary>An action card waiting for its target to be chosen.</summary>
+public sealed record PendingActionInfo(ActionKind Action, Guid DrawerId, IReadOnlyList<Guid> Candidates);
 
 /// <summary>
 /// A single Flip 7 round as a deterministic state machine: deal → hit/stay loop,
@@ -36,6 +42,19 @@ public sealed class Flip7Round
 
     private int _currentIndex = -1;
     private bool _dealt;
+
+    // Action cards drawn but not yet resolved (head = next to resolve). The
+    // head becomes PendingAction while a target choice is outstanding.
+    private readonly List<(ActionKind Action, Guid DrawerId)> _actionQueue = new();
+
+    // Seat index the initial deal is paused at (-1 = deal not in progress).
+    private int _dealCursor = -1;
+
+    // A Hit that paused on a target choice still owes its turn advancement.
+    private bool _advanceTurnAfterResolve;
+
+    /// <summary>The action card whose target must be chosen before play continues.</summary>
+    public PendingActionInfo? PendingAction { get; private set; }
 
     public Flip7Round(IReadOnlyList<Guid> turnOrder, IEnumerable<Flip7Card> deck, Random? random = null)
     {
@@ -71,6 +90,12 @@ public sealed class Flip7Round
         Dealt = _dealt,
         RoundEnded = RoundEnded,
         EndReason = EndReason,
+        ActionQueue = _actionQueue
+            .Select(a => new PendingActionSnapshot { Action = a.Action, DrawerId = a.DrawerId })
+            .ToList(),
+        DealCursor = _dealCursor,
+        AdvanceTurnAfterResolve = _advanceTurnAfterResolve,
+        PendingCandidates = PendingAction?.Candidates.ToList(),
     };
 
     /// <summary>Rebuilds a round from a snapshot produced by <see cref="Capture"/>.</summary>
@@ -91,6 +116,14 @@ public sealed class Flip7Round
         round._dealt = s.Dealt;
         round.RoundEnded = s.RoundEnded;
         round.EndReason = s.EndReason;
+        round._actionQueue.AddRange(s.ActionQueue.Select(a => (a.Action, a.DrawerId)));
+        round._dealCursor = s.DealCursor;
+        round._advanceTurnAfterResolve = s.AdvanceTurnAfterResolve;
+        if (s.PendingCandidates is { Count: > 0 } && round._actionQueue.Count > 0)
+        {
+            var head = round._actionQueue[0];
+            round.PendingAction = new PendingActionInfo(head.Action, head.DrawerId, s.PendingCandidates);
+        }
         return round;
     }
 
@@ -131,27 +164,19 @@ public sealed class Flip7Round
 
     // ---- Public turn API -------------------------------------------------
 
-    /// <summary>Deals one card face-up to each player in turn order, resolving action cards as they appear.</summary>
+    /// <summary>
+    /// Deals one card face-up to each player in turn order, resolving action
+    /// cards as they appear. May suspend on <see cref="PendingAction"/>; the
+    /// deal resumes automatically after <see cref="ResolveTarget"/>.
+    /// </summary>
     public IReadOnlyList<Flip7Event> DealInitial(TargetChooser? chooser = null)
     {
         if (_dealt) throw new InvalidOperationException("Initial deal already happened.");
         _dealt = true;
+        _dealCursor = 0;
 
         var events = new List<Flip7Event>();
-        var pick = chooser ?? DefaultChooser;
-
-        foreach (var id in _turnOrder)
-        {
-            if (RoundEnded) break;
-            var line = _lines[id];
-            if (!line.IsActive) continue; // may have been frozen by an earlier deal
-            ResolveDraw(line, pick, events, deferred: null);
-            CheckRoundEnd(events);
-        }
-
-        if (!RoundEnded)
-            _currentIndex = FirstActiveIndex();
-
+        ContinueDeal(chooser ?? DefaultChooser, events);
         return events;
     }
 
@@ -159,9 +184,18 @@ public sealed class Flip7Round
     public IReadOnlyList<Flip7Event> Hit(Guid playerId, TargetChooser? chooser = null)
     {
         RequireTurn(playerId);
+        var pick = chooser ?? DefaultChooser;
         var events = new List<Flip7Event>();
-        ResolveDraw(_lines[playerId], chooser ?? DefaultChooser, events, deferred: null);
+        ResolveDraw(_lines[playerId], events, deferred: null);
+        PumpActions(pick, events);
         CheckRoundEnd(events);
+
+        if (PendingAction is not null)
+        {
+            _advanceTurnAfterResolve = true; // owed once the target is chosen
+            return events;
+        }
+
         if (!RoundEnded) AdvanceTurn();
         return events;
     }
@@ -184,9 +218,70 @@ public sealed class Flip7Round
         return events;
     }
 
+    /// <summary>
+    /// Supplies the target for the suspended <see cref="PendingAction"/> and
+    /// resumes whatever the pause interrupted (the initial deal, the queue of
+    /// further drawn actions, or the turn rotation).
+    /// </summary>
+    public IReadOnlyList<Flip7Event> ResolveTarget(Guid playerId, Guid targetId, TargetChooser? chooser = null)
+    {
+        if (PendingAction is null)
+            throw new InvalidOperationException("No action card is awaiting a target.");
+        if (PendingAction.DrawerId != playerId)
+            throw new InvalidOperationException("Only the player who drew the action card chooses its target.");
+        if (!PendingAction.Candidates.Contains(targetId))
+            throw new InvalidOperationException("That player cannot be targeted.");
+
+        var pick = chooser ?? DefaultChooser;
+        var events = new List<Flip7Event>();
+
+        var pending = PendingAction;
+        PendingAction = null;
+        _actionQueue.RemoveAt(0); // the pending action is always the queue head
+
+        ApplyAction(pending.Action, pending.DrawerId, targetId, events);
+        CheckRoundEnd(events);
+        PumpActions(pick, events);
+
+        if (PendingAction is null && !RoundEnded)
+        {
+            if (_dealCursor >= 0)
+            {
+                ContinueDeal(pick, events);
+            }
+            else if (_advanceTurnAfterResolve)
+            {
+                _advanceTurnAfterResolve = false;
+                AdvanceTurn();
+            }
+        }
+
+        return events;
+    }
+
     // ---- Resolution internals -------------------------------------------
 
-    private void ResolveDraw(PlayerLine recipient, TargetChooser chooser, List<Flip7Event> events, List<ActionKind>? deferred)
+    /// <summary>Deals to the seats from the paused cursor onward; suspends on a target choice.</summary>
+    private void ContinueDeal(TargetChooser chooser, List<Flip7Event> events)
+    {
+        while (_dealCursor >= 0 && _dealCursor < _turnOrder.Count && !RoundEnded)
+        {
+            var line = _lines[_turnOrder[_dealCursor]];
+            _dealCursor++;
+            if (!line.IsActive) continue; // may have been frozen by an earlier deal
+
+            ResolveDraw(line, events, deferred: null);
+            PumpActions(chooser, events);
+            CheckRoundEnd(events);
+            if (PendingAction is not null) return; // resume from the cursor later
+        }
+
+        _dealCursor = -1;
+        if (!RoundEnded)
+            _currentIndex = FirstActiveIndex();
+    }
+
+    private void ResolveDraw(PlayerLine recipient, List<Flip7Event> events, List<ActionKind>? deferred)
     {
         if (!recipient.IsActive) return;
 
@@ -203,8 +298,91 @@ public sealed class Flip7Round
                 break;
 
             case CardKind.Action:
-                ResolveAction(recipient, card, chooser, events, deferred);
+                ResolveAction(recipient, card, events, deferred);
                 break;
+        }
+    }
+
+    /// <summary>
+    /// Resolves queued Freeze / Flip Three cards in order, consulting the
+    /// chooser for each target. A null choice suspends on the queue head as
+    /// <see cref="PendingAction"/>.
+    /// </summary>
+    private void PumpActions(TargetChooser chooser, List<Flip7Event> events)
+    {
+        while (PendingAction is null && _actionQueue.Count > 0)
+        {
+            if (RoundEnded)
+            {
+                _actionQueue.Clear();
+                return;
+            }
+
+            var (action, drawerId) = _actionQueue[0];
+            var candidates = ActiveCandidates();
+            if (candidates.Count == 0)
+            {
+                _actionQueue.RemoveAt(0); // fizzles — nobody left to target
+                continue;
+            }
+
+            var choice = chooser(action, drawerId, candidates);
+            if (choice is null)
+            {
+                PendingAction = new PendingActionInfo(action, drawerId, candidates);
+                return;
+            }
+
+            if (!candidates.Contains(choice.Value))
+                throw new ArgumentException($"Chooser returned {choice}, which is not an active candidate for {action}.");
+
+            _actionQueue.RemoveAt(0);
+            ApplyAction(action, drawerId, choice.Value, events);
+            CheckRoundEnd(events);
+        }
+    }
+
+    private void ApplyAction(ActionKind action, Guid drawerId, Guid targetId, List<Flip7Event> events)
+    {
+        if (action == ActionKind.Freeze)
+        {
+            var target = _lines[targetId];
+            if (!target.IsActive) return; // target left the round while queued
+            target.Status = PlayerLineStatus.Frozen;
+            events.Add(new Flip7Event
+            {
+                Type = Flip7EventType.Frozen,
+                PlayerId = targetId,
+                SourcePlayerId = drawerId,
+            });
+            return;
+        }
+
+        // Flip Three
+        var line = _lines[targetId];
+        if (!line.IsActive) return;
+
+        events.Add(new Flip7Event
+        {
+            Type = Flip7EventType.FlipThreeStarted,
+            PlayerId = targetId,
+            SourcePlayerId = drawerId,
+        });
+
+        var deferred = new List<ActionKind>();
+        for (int i = 0; i < 3; i++)
+        {
+            if (!line.IsActive || line.AchievedFlip7) break;
+            ResolveDraw(line, events, deferred);
+        }
+
+        // Nested Freeze / Flip Three resolve after the three draws, and only if
+        // the player survived the sequence. They go to the queue front so they
+        // resolve (with their own target choice) before older pending actions.
+        if (line.IsActive && !line.AchievedFlip7)
+        {
+            for (int i = deferred.Count - 1; i >= 0; i--)
+                _actionQueue.Insert(0, (deferred[i], targetId));
         }
     }
 
@@ -239,78 +417,31 @@ public sealed class Flip7Round
         }
     }
 
-    private void ResolveAction(PlayerLine drawer, Flip7Card card, TargetChooser chooser, List<Flip7Event> events, List<ActionKind>? deferred)
+    private void ResolveAction(PlayerLine drawer, Flip7Card card, List<Flip7Event> events, List<ActionKind>? deferred)
     {
         var action = card.Action!.Value;
-        switch (action)
+
+        if (action == ActionKind.SecondChance)
         {
-            case ActionKind.Freeze:
-                if (deferred != null) { deferred.Add(action); _discard.Add(card); return; }
-                ResolveFreeze(drawer, chooser, events);
-                _discard.Add(card);
-                break;
-
-            case ActionKind.FlipThree:
-                if (deferred != null) { deferred.Add(action); _discard.Add(card); return; }
-                ResolveFlipThree(drawer, chooser, events);
-                _discard.Add(card);
-                break;
-
-            case ActionKind.SecondChance:
-                // Kept in front of a player (tracked by the HasSecondChance flag)
-                // or discarded inside the resolver — never auto-discarded here.
-                ResolveSecondChance(drawer, card, chooser, events);
-                break;
-        }
-    }
-
-    private void ResolveFreeze(PlayerLine drawer, TargetChooser chooser, List<Flip7Event> events)
-    {
-        var candidates = ActiveCandidates();
-        var targetId = ChooseTarget(ActionKind.Freeze, drawer.PlayerId, candidates, chooser);
-        var target = _lines[targetId];
-        target.Status = PlayerLineStatus.Frozen;
-        events.Add(new Flip7Event
-        {
-            Type = Flip7EventType.Frozen,
-            PlayerId = targetId,
-            SourcePlayerId = drawer.PlayerId,
-        });
-    }
-
-    private void ResolveFlipThree(PlayerLine drawer, TargetChooser chooser, List<Flip7Event> events)
-    {
-        var candidates = ActiveCandidates();
-        var targetId = ChooseTarget(ActionKind.FlipThree, drawer.PlayerId, candidates, chooser);
-        var target = _lines[targetId];
-
-        events.Add(new Flip7Event
-        {
-            Type = Flip7EventType.FlipThreeStarted,
-            PlayerId = targetId,
-            SourcePlayerId = drawer.PlayerId,
-        });
-
-        var deferred = new List<ActionKind>();
-        for (int i = 0; i < 3; i++)
-        {
-            if (!target.IsActive || target.AchievedFlip7) break;
-            ResolveDraw(target, chooser, events, deferred);
+            // Kept in front of a player (tracked by the HasSecondChance flag)
+            // or discarded inside the resolver — resolves inline, never queues.
+            ResolveSecondChance(drawer, card, events);
+            return;
         }
 
-        // Nested Freeze / Flip Three resolve only if the player survived the sequence.
-        if (target.IsActive && !target.AchievedFlip7)
-        {
-            foreach (var pending in deferred)
-            {
-                if (!target.IsActive || target.AchievedFlip7) break;
-                if (pending == ActionKind.Freeze) ResolveFreeze(target, chooser, events);
-                else ResolveFlipThree(target, chooser, events);
-            }
-        }
+        // Freeze / Flip Three: reveal the card, then queue it for resolution
+        // (the target choice happens in PumpActions). During a Flip Three the
+        // rulebook defers these until after the three draws.
+        _discard.Add(card);
+        events.Add(new Flip7Event { Type = Flip7EventType.ActionDrawn, PlayerId = drawer.PlayerId, Card = card });
+
+        if (deferred != null)
+            deferred.Add(action);
+        else
+            _actionQueue.Add((action, drawer.PlayerId));
     }
 
-    private void ResolveSecondChance(PlayerLine drawer, Flip7Card card, TargetChooser chooser, List<Flip7Event> events)
+    private void ResolveSecondChance(PlayerLine drawer, Flip7Card card, List<Flip7Event> events)
     {
         if (!drawer.HasSecondChance)
         {
@@ -331,7 +462,9 @@ public sealed class Flip7Round
             return;
         }
 
-        var targetId = ChooseTarget(ActionKind.SecondChance, drawer.PlayerId, candidates, chooser);
+        // Receiving player is picked automatically (lowest-id active without one);
+        // this is the one action that never pauses for a choice.
+        var targetId = Flip7TargetSelector.Choose(ActionKind.SecondChance, drawer.PlayerId, candidates, this);
         _lines[targetId].HasSecondChance = true;
         events.Add(new Flip7Event
         {
@@ -343,27 +476,17 @@ public sealed class Flip7Round
 
     // ---- Helpers ---------------------------------------------------------
 
-    // Freeze / Flip Three may target any active player, including the drawer
-    // (who is necessarily active at this point — so they are always a candidate).
+    // Freeze / Flip Three may target any active player, including the drawer.
     private List<Guid> ActiveCandidates() =>
         _turnOrder.Where(id => _lines[id].IsActive).ToList();
 
-    private static Guid ChooseTarget(ActionKind action, Guid drawer, IReadOnlyList<Guid> candidates, TargetChooser chooser)
-    {
-        if (candidates.Count == 0)
-            throw new InvalidOperationException($"No valid target for {action}.");
-        if (candidates.Count == 1)
-            return candidates[0]; // solo / last-player self-targeting falls out here
-
-        var chosen = chooser(action, drawer, candidates);
-        if (!candidates.Contains(chosen))
-            throw new ArgumentException($"Chooser returned {chosen}, which is not an active candidate for {action}.");
-        return chosen;
-    }
-
-    private static Guid DefaultChooser(ActionKind action, Guid drawer, IReadOnlyList<Guid> candidates) =>
-        throw new InvalidOperationException(
-            $"{action} drawn by {drawer} needs a target choice among {candidates.Count} candidates, but no TargetChooser was supplied.");
+    // Used when no chooser is supplied (tests / solo flows): self-target when
+    // the choice is forced, otherwise demand an explicit chooser.
+    private static Guid? DefaultChooser(ActionKind action, Guid drawer, IReadOnlyList<Guid> candidates) =>
+        candidates.Count == 1
+            ? candidates[0]
+            : throw new InvalidOperationException(
+                $"{action} drawn by {drawer} needs a target choice among {candidates.Count} candidates, but no TargetChooser was supplied.");
 
     private Flip7Card DrawCard()
     {
@@ -409,6 +532,9 @@ public sealed class Flip7Round
         RoundEnded = true;
         EndReason = reason;
         _currentIndex = -1;
+        _dealCursor = -1;
+        _advanceTurnAfterResolve = false;
+        _actionQueue.Clear();
         events.Add(new Flip7Event { Type = Flip7EventType.RoundEnded, Detail = reason.ToString() });
     }
 
@@ -439,6 +565,8 @@ public sealed class Flip7Round
     {
         if (RoundEnded)
             throw new InvalidOperationException("The round has ended.");
+        if (PendingAction is not null)
+            throw new InvalidOperationException("An action card is awaiting a target choice.");
         if (CurrentPlayerId != playerId)
             throw new InvalidOperationException($"It is not {playerId}'s turn (current: {CurrentPlayerId}).");
     }

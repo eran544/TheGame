@@ -17,6 +17,23 @@ public sealed class Flip7RoundSnapshot
     public bool Dealt { get; set; }
     public bool RoundEnded { get; set; }
     public RoundEndReason EndReason { get; set; } = RoundEndReason.None;
+
+    /// <summary>Drawn-but-unresolved action cards, head first.</summary>
+    public List<PendingActionSnapshot> ActionQueue { get; set; } = new();
+
+    /// <summary>Seat index the initial deal is paused at; -1 when not dealing.</summary>
+    public int DealCursor { get; set; } = -1;
+
+    public bool AdvanceTurnAfterResolve { get; set; }
+
+    /// <summary>Candidates of the suspended queue head; null when nothing is pending.</summary>
+    public List<Guid>? PendingCandidates { get; set; }
+}
+
+public sealed class PendingActionSnapshot
+{
+    public ActionKind Action { get; set; }
+    public Guid DrawerId { get; set; }
 }
 
 public sealed class PlayerLineSnapshot

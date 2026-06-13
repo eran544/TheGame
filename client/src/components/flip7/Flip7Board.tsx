@@ -2,7 +2,20 @@ import React, { useEffect, useRef, useState } from 'react';
 import Button from '../ui/Button';
 import type { Flip7GameState, Flip7PlayerState } from '../../types/flip7';
 import { MODIFIER_LABELS } from '../../types/flip7';
+import { describeEvent } from '../../utils/flip7Events';
 import styles from './Flip7Board.module.css';
+
+interface Flip7BoardProps {
+  state: Flip7GameState;
+  /** The signed-in user's id (players are matched by userId). */
+  myUserId: string;
+  busy?: boolean;
+  onHit: () => void;
+  onStay: () => void;
+  onChooseTarget: (targetPlayerId: string) => void;
+  onNextRound: () => void;
+  onExit: () => void;
+}
 
 interface Announcement {
   kind: 'flip7' | 'bust' | 'frozen';
@@ -10,76 +23,73 @@ interface Announcement {
   sub?: string;
 }
 
-interface Flip7BoardProps {
-  state: Flip7GameState;
-  /** The signed-in user's id (players are matched by userId). */
-  myUserId: string;
-  feed: string[];
-  busy?: boolean;
-  onHit: () => void;
-  onStay: () => void;
-  onNextRound: () => void;
-  onExit: () => void;
-}
-
 /**
  * Renders one authoritative Flip7GameState: scoreboard, every player's line,
- * controls for the local player, and the round/game-end panels. Pure view —
- * all rules live on the server; the parent supplies the actions (REST for
- * solo, SignalR for multiplayer).
+ * controls, the action-card target picker, and round/game-end panels. The feed
+ * and the big celebration overlays are built from the server's event stream
+ * (keyed by actionId so reconnects don't replay) — no client-side game logic.
  */
 const Flip7Board: React.FC<Flip7BoardProps> = ({
   state,
   myUserId,
-  feed,
   busy = false,
   onHit,
   onStay,
+  onChooseTarget,
   onNextRound,
   onExit,
 }) => {
-  const feedEndRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    feedEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [feed]);
+  const me = state.players.find((p) => p.userId === myUserId && !p.isAi);
+  const current = state.players.find((p) => p.id === state.currentPlayerId);
+  const gameOver = state.status === 'Completed';
+  const winner = state.players.find((p) => p.id === state.winnerId);
 
-  // Big transient overlays for the dramatic moments, derived by diffing
-  // consecutive authoritative snapshots (mirrors the feed derivation).
+  const pending = state.pendingAction ?? null;
+  const iMustChoose = !!pending && !!me && pending.drawerId === me.id;
+  const myTurn =
+    !!me && !!current && current.id === me.id && !state.roundEnded && !pending;
+  const canStay = myTurn && (me!.numbers.length > 0 || me!.modifiers.length > 0);
+
+  // ---- Feed + announcements from the server event stream ----------------
+  const [feed, setFeed] = useState<string[]>([]);
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
-  const prevRef = useRef<Flip7GameState | null>(null);
-  useEffect(() => {
-    const prev = prevRef.current;
-    prevRef.current = state;
-    if (!prev || prev.id !== state.id) return;
+  const lastActionRef = useRef<string | null>(null);
+  const feedEndRef = useRef<HTMLDivElement>(null);
 
-    const prevById = new Map(prev.players.map((p) => [p.id, p]));
-    let next: Announcement | null = null;
-    for (const p of state.players) {
-      const was = prevById.get(p.id);
-      if (!was) continue;
-      if (p.achievedFlip7 && !was.achievedFlip7) {
-        next = { kind: 'flip7', text: '⭐ FLIP 7! ⭐', sub: `${p.username} +15 bonus` };
-        break;
-      }
-      if (p.status === 'Busted' && was.status !== 'Busted' && p.userId === myUserId && !p.isAi) {
-        next = { kind: 'bust', text: '💥 BUST!', sub: 'Duplicate number — 0 this round' };
-      } else if (p.status === 'Frozen' && was.status !== 'Frozen' && p.userId === myUserId && !p.isAi) {
-        next = { kind: 'frozen', text: '❄️ FROZEN', sub: `${p.roundScore} points banked` };
-      }
-    }
-    if (next) {
-      setAnnouncement(next);
-      const timer = setTimeout(() => setAnnouncement(null), 1800);
-      return () => clearTimeout(timer);
+  useEffect(() => {
+    const actionId = state.actionId ?? null;
+    const events = state.events ?? [];
+    // Only process a given action's events once (guards reconnect/replay).
+    if (!actionId || actionId === lastActionRef.current || events.length === 0) return;
+    lastActionRef.current = actionId;
+
+    const lines = events.map((e) => describeEvent(e, state)).filter((l): l is string => !!l);
+    if (lines.length) setFeed((old) => [...old, ...lines]);
+
+    // Pick the most dramatic beat for the overlay, preferring my own events.
+    const mine = (id: string) => state.players.find((p) => p.id === id)?.userId === myUserId;
+    const flip7 = events.find((e) => e.type === 'Flip7Achieved');
+    const myBust = events.find((e) => e.type === 'Busted' && mine(e.playerId));
+    const myFrozen = events.find((e) => e.type === 'Frozen' && mine(e.playerId));
+    if (flip7) {
+      const star = state.players.find((p) => p.id === flip7.playerId);
+      setAnnouncement({ kind: 'flip7', text: '⭐ FLIP 7! ⭐', sub: `${star?.username ?? ''} +15 bonus` });
+    } else if (myBust) {
+      setAnnouncement({ kind: 'bust', text: '💥 BUST!', sub: `Duplicate ${myBust.card} — 0 this round` });
+    } else if (myFrozen) {
+      setAnnouncement({ kind: 'frozen', text: '❄️ FROZEN', sub: 'Points banked' });
     }
   }, [state, myUserId]);
 
-  const me = state.players.find((p) => p.userId === myUserId && !p.isAi);
-  const current = state.players.find((p) => p.id === state.currentPlayerId);
-  const myTurn = !!me && !!current && current.id === me.id && !state.roundEnded;
-  const gameOver = state.status === 'Completed';
-  const winner = state.players.find((p) => p.id === state.winnerId);
-  const canStay = myTurn && !!me && (me.numbers.length > 0 || me.modifiers.length > 0);
+  useEffect(() => {
+    if (!announcement) return;
+    const t = setTimeout(() => setAnnouncement(null), 1800);
+    return () => clearTimeout(t);
+  }, [announcement]);
+
+  useEffect(() => {
+    feedEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [feed]);
 
   const ranked = [...state.players].sort((a, b) => b.cumulativeScore - a.cumulativeScore);
 
@@ -88,7 +98,7 @@ const Flip7Board: React.FC<Flip7BoardProps> = ({
       {/* Scoreboard */}
       <div className={styles.scoreboard}>
         {state.players.map((p) => {
-          const isCurrent = !state.roundEnded && p.id === state.currentPlayerId;
+          const isCurrent = !state.roundEnded && !pending && p.id === state.currentPlayerId;
           return (
             <div
               key={p.id}
@@ -116,7 +126,6 @@ const Flip7Board: React.FC<Flip7BoardProps> = ({
               <div className={styles.scoreValues}>
                 <div className={styles.scoreGroup}>
                   <span className={styles.scoreLabel}>Total</span>
-                  {/* Keying on the value remounts the span, replaying the pop. */}
                   <span key={p.cumulativeScore} className={styles.scoreVal}>
                     {p.cumulativeScore}
                   </span>
@@ -204,7 +213,13 @@ const Flip7Board: React.FC<Flip7BoardProps> = ({
             >
               Stay
             </button>
-            {!myTurn && current && (
+            {pending && !iMustChoose && current && (
+              <div className={styles.turnHint}>
+                <strong>{state.players.find((p) => p.id === pending.drawerId)?.username}</strong> is
+                choosing a target…
+              </div>
+            )}
+            {!pending && !myTurn && current && (
               <div className={styles.turnHint}>
                 Waiting for <strong>{current.username}</strong>…
               </div>
@@ -246,6 +261,16 @@ const Flip7Board: React.FC<Flip7BoardProps> = ({
         )}
       </div>
 
+      {/* Action-card target picker (the drawer chooses; others are shown disabled) */}
+      {iMustChoose && pending && (
+        <TargetPicker
+          state={state}
+          pending={pending}
+          busy={busy}
+          onChoose={onChooseTarget}
+        />
+      )}
+
       {announcement && (
         <div
           className={[
@@ -262,6 +287,70 @@ const Flip7Board: React.FC<Flip7BoardProps> = ({
           {announcement.sub && <div className={styles.announceSub}>{announcement.sub}</div>}
         </div>
       )}
+    </div>
+  );
+};
+
+const ACTION_COPY = {
+  Freeze: { verb: 'Freeze', emoji: '❄️', desc: 'banks their points and ends their round' },
+  FlipThree: { verb: 'Flip Three', emoji: '🔄', desc: 'forces them to draw three cards' },
+} as const;
+
+const TargetPicker: React.FC<{
+  state: Flip7GameState;
+  pending: NonNullable<Flip7GameState['pendingAction']>;
+  busy: boolean;
+  onChoose: (id: string) => void;
+}> = ({ state, pending, busy, onChoose }) => {
+  const copy = ACTION_COPY[pending.action];
+  const candidateSet = new Set(pending.candidateIds);
+  const onlySelf =
+    pending.candidateIds.length === 1 && pending.candidateIds[0] === pending.drawerId;
+
+  return (
+    <div className={styles.pickerOverlay} aria-live="assertive">
+      <div className={styles.pickerCard}>
+        <div className={styles.pickerCardArt}>{copy.emoji}</div>
+        <h2 className={styles.pickerTitle}>You drew {copy.verb}</h2>
+        <p className={styles.pickerSub}>
+          {onlySelf ? (
+            <>You&rsquo;re the only active player — you must {copy.verb} yourself.</>
+          ) : (
+            <>Choose who to {copy.verb} — it {copy.desc}.</>
+          )}
+        </p>
+
+        <div className={styles.pickerPlayers}>
+          {state.players.map((p) => {
+            const selectable = candidateSet.has(p.id) && !busy;
+            const isSelf = p.id === pending.drawerId;
+            return (
+              <button
+                key={p.id}
+                className={[
+                  styles.pickerPlayer,
+                  selectable ? styles.pickerSelectable : styles.pickerDisabled,
+                  isSelf ? styles.pickerSelf : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                disabled={!selectable}
+                onClick={() => selectable && onChoose(p.id)}
+              >
+                <span className={styles.pickerPlayerName}>
+                  {p.username}
+                  {isSelf ? ' (you)' : ''}
+                </span>
+                <span className={styles.pickerPlayerMeta}>
+                  {p.status === 'Active'
+                    ? `${p.numbers.length} cards`
+                    : p.status.toLowerCase()}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 };

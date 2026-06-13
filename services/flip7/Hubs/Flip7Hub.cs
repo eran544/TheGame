@@ -55,6 +55,14 @@ public class Flip7Hub : Hub
     public Task Stay(string gameId) =>
         Act(gameId, id => _games.StayAsync(id, UserId));
 
+    public Task ChooseTarget(string gameId, string targetPlayerId) =>
+        Act(gameId, id =>
+        {
+            if (!Guid.TryParse(targetPlayerId, out var target))
+                throw new InvalidOperationException("Invalid target.");
+            return _games.ChooseTargetAsync(id, UserId, target);
+        });
+
     public Task NextRound(string gameId) =>
         Act(gameId, id => _games.NextRoundAsync(id, UserId));
 

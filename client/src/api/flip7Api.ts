@@ -20,6 +20,9 @@ const flip7Api = {
   soloStay: (gameId: string, token: string) =>
     flip7Client.post<Flip7GameState>(`/api/flip7/solo/${gameId}/stay`, {}, token),
 
+  soloChooseTarget: (gameId: string, targetPlayerId: string, token: string) =>
+    flip7Client.post<Flip7GameState>(`/api/flip7/solo/${gameId}/choose-target`, { targetPlayerId }, token),
+
   soloNextRound: (gameId: string, token: string) =>
     flip7Client.post<Flip7GameState>(`/api/flip7/solo/${gameId}/next-round`, {}, token),
 

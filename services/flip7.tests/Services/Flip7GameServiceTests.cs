@@ -168,4 +168,73 @@ public class Flip7GameServiceTests
         var act = async () => await h.Svc().HitAsync(Guid.NewGuid(), User);
         await act.Should().ThrowAsync<KeyNotFoundException>();
     }
+
+    private static Flip7Card Act(ActionKind a) => Flip7Card.OfAction(a);
+
+    [Fact]
+    public async Task Bust_event_reports_the_duplicate_card()
+    {
+        var h = new Harness(N(3), N(5), N(3));
+        var created = await h.Svc().CreateSoloAsync(User, "alice", null);
+        await h.Svc().HitAsync(created.Id, User);              // [3,5]
+        var state = await h.Svc().HitAsync(created.Id, User);  // 3 dup → bust
+
+        state.Events.Should().Contain(e => e.Type == "Busted" && e.Card == "3");
+    }
+
+    [Fact]
+    public async Task Solo_freeze_suspends_for_a_self_target_choice()
+    {
+        var h = new Harness(N(5), Act(ActionKind.Freeze));
+        var created = await h.Svc().CreateSoloAsync(User, "alice", null); // [5]
+
+        var state = await h.Svc().HitAsync(created.Id, User);  // draws Freeze
+
+        state.PendingAction.Should().NotBeNull();
+        state.PendingAction!.Action.Should().Be("Freeze");
+        state.PendingAction.DrawerId.Should().Be(state.Players[0].Id);
+        state.PendingAction.CandidateIds.Should().Equal(state.Players[0].Id); // only self
+        state.Events.Should().Contain(e => e.Type == "ActionDrawn" && e.Card == "Freeze");
+        state.Players[0].Status.Should().Be("Active");         // not yet resolved
+    }
+
+    [Fact]
+    public async Task Choosing_the_self_target_resolves_the_freeze()
+    {
+        var h = new Harness(N(5), Act(ActionKind.Freeze));
+        var created = await h.Svc().CreateSoloAsync(User, "alice", null);
+        var pending = await h.Svc().HitAsync(created.Id, User);
+
+        var state = await h.Svc().ChooseTargetAsync(created.Id, User, pending.Players[0].Id);
+
+        state.PendingAction.Should().BeNull();
+        state.Players[0].Status.Should().Be("Frozen");
+        state.RoundEnded.Should().BeTrue();
+        state.Players[0].CumulativeScore.Should().Be(5);       // banked on freeze
+        state.Events.Should().Contain(e => e.Type == "Frozen");
+    }
+
+    [Fact]
+    public async Task Hitting_while_a_target_choice_is_pending_is_rejected()
+    {
+        var h = new Harness(N(5), Act(ActionKind.Freeze), N(6));
+        var created = await h.Svc().CreateSoloAsync(User, "alice", null);
+        await h.Svc().HitAsync(created.Id, User);              // suspends on Freeze
+
+        var act = async () => await h.Svc().HitAsync(created.Id, User);
+        await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task Pending_freeze_survives_persistence()
+    {
+        var h = new Harness(N(5), Act(ActionKind.Freeze));
+        var created = await h.Svc().CreateSoloAsync(User, "alice", null);
+        await h.Svc().HitAsync(created.Id, User);
+
+        // Fresh service instance / DbContext: state must rehydrate the pending action.
+        var fetched = await h.Svc().GetStateAsync(created.Id, User);
+        fetched!.PendingAction.Should().NotBeNull();
+        fetched.PendingAction!.Action.Should().Be("Freeze");
+    }
 }

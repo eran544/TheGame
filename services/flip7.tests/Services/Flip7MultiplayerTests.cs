@@ -152,6 +152,51 @@ public class Flip7MultiplayerTests
         var act = async () => await h.Svc().JoinAsync(created.Id, Other, "bob");
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
+
+    private static Flip7Card Act(ActionKind a) => Flip7Card.OfAction(a);
+
+    [Fact]
+    public async Task Human_freeze_offers_both_active_players_and_freezes_the_chosen_opponent()
+    {
+        // Online, two humans, no AI. Dealer seat 0 → turn order [bob, alice].
+        // Deal: bob=[4], alice=[5]. bob hits → 6; alice hits → Freeze (both active).
+        var h = new Harness("stay", N(4), N(5), N(6), Act(ActionKind.Freeze));
+        var created = await h.Svc().CreateGameAsync(Flip7GameMode.Online, Human, "alice", Array.Empty<Flip7AiSpec>(), null);
+        await h.Svc().JoinAsync(created.Id, Other, "bob");
+        var started = await h.Svc().StartAsync(created.Id, Human);
+
+        var bob = started.Players.Single(p => p.UserId == Other);
+        var alice = started.Players.Single(p => p.UserId == Human);
+        started.CurrentPlayerId.Should().Be(bob.Id);  // bob acts first
+
+        await h.Svc().HitAsync(created.Id, Other);     // bob → [4,6], turn → alice
+        var pending = await h.Svc().HitAsync(created.Id, Human); // alice draws Freeze
+
+        pending.PendingAction.Should().NotBeNull();
+        pending.PendingAction!.Action.Should().Be("Freeze");
+        pending.PendingAction.DrawerId.Should().Be(alice.Id);
+        pending.PendingAction.CandidateIds.Should().BeEquivalentTo(new[] { alice.Id, bob.Id });
+
+        var resolved = await h.Svc().ChooseTargetAsync(created.Id, Human, bob.Id);
+        resolved.Players.Single(p => p.UserId == Other).Status.Should().Be("Frozen");
+        resolved.Players.Single(p => p.UserId == Human).Status.Should().Be("Active");
+    }
+
+    [Fact]
+    public async Task Only_the_drawer_can_choose_the_target()
+    {
+        var h = new Harness("stay", N(4), N(5), N(6), Act(ActionKind.Freeze));
+        var created = await h.Svc().CreateGameAsync(Flip7GameMode.Online, Human, "alice", Array.Empty<Flip7AiSpec>(), null);
+        await h.Svc().JoinAsync(created.Id, Other, "bob");
+        await h.Svc().StartAsync(created.Id, Human);
+        await h.Svc().HitAsync(created.Id, Other);
+        var pending = await h.Svc().HitAsync(created.Id, Human); // alice drew the Freeze
+
+        // bob is not the drawer; he cannot choose.
+        var bob = pending.Players.Single(p => p.UserId == Other);
+        var act = async () => await h.Svc().ChooseTargetAsync(created.Id, Other, bob.Id);
+        await act.Should().ThrowAsync<InvalidOperationException>();
+    }
 }
 
 public class Flip7TargetSelectorTests

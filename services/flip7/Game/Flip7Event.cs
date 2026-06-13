@@ -5,6 +5,8 @@ public enum Flip7EventType
 {
     NumberAdded,
     ModifierAdded,
+    /// <summary>A Freeze / Flip Three card was revealed (resolution may need a target first).</summary>
+    ActionDrawn,
     Busted,
     SecondChanceGained,
     SecondChancePassed,

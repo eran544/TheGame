@@ -28,6 +28,9 @@ public interface IFlip7GameService
 
     Task<Flip7GameStateDto> StayAsync(Guid gameId, Guid userId, CancellationToken ct = default);
 
+    /// <summary>Resolves the pending action card (Freeze / Flip Three) with the drawer's chosen target.</summary>
+    Task<Flip7GameStateDto> ChooseTargetAsync(Guid gameId, Guid userId, Guid targetPlayerId, CancellationToken ct = default);
+
     /// <summary>Deals the next round after the current one has ended (game not yet over).</summary>
     Task<Flip7GameStateDto> NextRoundAsync(Guid gameId, Guid userId, CancellationToken ct = default);
 

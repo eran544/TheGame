@@ -62,6 +62,10 @@ public class GamesController : ControllerBase
     public Task<ActionResult<Flip7GameStateDto>> Stay(Guid gameId, CancellationToken ct) =>
         Run(() => _games.StayAsync(gameId, Identity().userId, ct));
 
+    [HttpPost("{gameId:guid}/choose-target")]
+    public Task<ActionResult<Flip7GameStateDto>> ChooseTarget(Guid gameId, [FromBody] ChooseTargetRequest request, CancellationToken ct) =>
+        Run(() => _games.ChooseTargetAsync(gameId, Identity().userId, request.TargetPlayerId, ct));
+
     [HttpPost("{gameId:guid}/next-round")]
     public Task<ActionResult<Flip7GameStateDto>> NextRound(Guid gameId, CancellationToken ct) =>
         Run(() => _games.NextRoundAsync(gameId, Identity().userId, ct));

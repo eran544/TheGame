@@ -279,4 +279,130 @@ public class Flip7RoundTests
         drawAfterEmpty.Should().NotThrow();
         round.Line(A).IsActive.Should().BeTrue();
     }
+
+    // ---- Interactive target choice (human drawers) ----------------------
+
+    // A chooser that always defers to an interactive choice (as a human does).
+    private static readonly TargetChooser Interactive = (_, _, _) => null;
+
+    [Fact]
+    public void Busted_event_carries_the_duplicate_card()
+    {
+        var round = Solo(N(3), N(5), N(3));
+        round.DealInitial();
+        round.Hit(A);
+        var events = round.Hit(A);
+
+        var bust = events.Single(e => e.Type == Flip7EventType.Busted);
+        bust.Card!.Number.Should().Be(3);
+    }
+
+    [Fact]
+    public void Second_chance_used_event_carries_the_duplicate_card()
+    {
+        var round = Solo(Act(ActionKind.SecondChance), N(4), N(4));
+        round.DealInitial();          // Second Chance kept
+        round.Hit(A);                 // [4]
+        var events = round.Hit(A);    // duplicate 4 negated
+
+        var used = events.Single(e => e.Type == Flip7EventType.SecondChanceUsed);
+        used.Card!.Number.Should().Be(4);
+    }
+
+    [Fact]
+    public void Action_card_reveal_emits_action_drawn_event()
+    {
+        var round = Solo(N(5), Act(ActionKind.Freeze));
+        round.DealInitial();
+        var events = round.Hit(A, Interactive);
+
+        events.Should().Contain(e =>
+            e.Type == Flip7EventType.ActionDrawn && e.Card!.Action == ActionKind.Freeze);
+    }
+
+    [Fact]
+    public void Human_freeze_suspends_for_a_target_even_when_only_self_is_eligible()
+    {
+        var round = Solo(N(5), Act(ActionKind.Freeze));
+        round.DealInitial();          // [5]
+        round.Hit(A, Interactive);    // draws Freeze → suspends
+
+        round.PendingAction.Should().NotBeNull();
+        round.PendingAction!.Action.Should().Be(ActionKind.Freeze);
+        round.PendingAction.DrawerId.Should().Be(A);
+        round.PendingAction.Candidates.Should().Equal(A); // only self
+        round.Line(A).Status.Should().Be(PlayerLineStatus.Active); // not yet resolved
+
+        round.ResolveTarget(A, A);
+        round.Line(A).Status.Should().Be(PlayerLineStatus.Frozen);
+        round.RoundEnded.Should().BeTrue();
+        round.Scores[A].Should().Be(5);
+    }
+
+    [Fact]
+    public void Human_freeze_can_target_a_chosen_opponent()
+    {
+        var round = Two(N(3), N(4), Act(ActionKind.Freeze));
+        round.DealInitial();          // A=[3], B=[4]
+        round.Hit(A, Interactive);    // A draws Freeze → suspends with both candidates
+
+        round.PendingAction!.Candidates.Should().BeEquivalentTo(new[] { A, B });
+
+        round.ResolveTarget(A, B, Interactive);
+        round.Line(B).Status.Should().Be(PlayerLineStatus.Frozen);
+        round.Line(A).Status.Should().Be(PlayerLineStatus.Active);
+        round.CurrentPlayerId.Should().Be(A); // B inactive, turn returns to A
+    }
+
+    [Fact]
+    public void Cannot_hit_while_a_target_choice_is_pending()
+    {
+        var round = Solo(N(5), Act(ActionKind.Freeze), N(6));
+        round.DealInitial();
+        round.Hit(A, Interactive);    // suspends
+
+        Action hitWhilePending = () => round.Hit(A, Interactive);
+        hitWhilePending.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void Resolve_target_rejects_a_non_candidate()
+    {
+        var round = Two(N(3), N(4), Act(ActionKind.Freeze));
+        round.DealInitial();
+        round.Hit(A, Interactive);
+
+        Action wrong = () => round.ResolveTarget(A, Guid.NewGuid(), Interactive);
+        wrong.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void Human_flip_three_suspends_then_draws_three_for_the_target()
+    {
+        var round = Solo(N(2), Act(ActionKind.FlipThree), N(4), N(5), N(6));
+        round.DealInitial();          // [2]
+        round.Hit(A, Interactive);    // draws Flip Three → suspends
+        round.PendingAction!.Action.Should().Be(ActionKind.FlipThree);
+
+        round.ResolveTarget(A, A);    // self → draws 4,5,6
+        round.Line(A).Numbers.Should().Equal(2, 4, 5, 6);
+        round.PendingAction.Should().BeNull();
+        round.CurrentPlayerId.Should().Be(A);
+    }
+
+    [Fact]
+    public void Pending_action_survives_a_snapshot_round_trip()
+    {
+        var round = Two(N(3), N(4), Act(ActionKind.Freeze));
+        round.DealInitial();
+        round.Hit(A, Interactive);    // suspended on Freeze with [A, B]
+
+        var restored = Flip7Round.Restore(round.Capture());
+        restored.PendingAction.Should().NotBeNull();
+        restored.PendingAction!.Action.Should().Be(ActionKind.Freeze);
+        restored.PendingAction.Candidates.Should().BeEquivalentTo(new[] { A, B });
+
+        restored.ResolveTarget(A, B, Interactive);
+        restored.Line(B).Status.Should().Be(PlayerLineStatus.Frozen);
+    }
 }
