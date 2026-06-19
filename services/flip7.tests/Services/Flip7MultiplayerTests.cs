@@ -45,9 +45,10 @@ public class Flip7MultiplayerTests
         new[] { new Flip7AiSpec { Style = style, Difficulty = difficulty } };
 
     [Fact]
-    public async Task Create_vs_ai_starts_in_progress_with_seated_ai_and_passes_turn_to_human()
+    public async Task Create_vs_ai_deals_and_leaves_the_opening_ai_on_turn_for_the_hub_to_animate()
     {
-        // Dealer seat 0 → turn order [AI, human]; AI (stub "stay") banks and passes.
+        // Dealer seat 0 → turn order [AI, human]. The AI is dealt but does NOT act
+        // at creation: opening turns are deferred so the hub can animate them.
         var h = new Harness("stay", N(4), N(5), N(6), N(7));
         var state = await h.Svc().CreateGameAsync(Flip7GameMode.VsAi, Human, "alice", OneAi(), null);
 
@@ -58,12 +59,18 @@ public class Flip7MultiplayerTests
         var ai = state.Players.Single(p => p.IsAi);
         ai.AiStyle.Should().Be("risky");
         ai.AiDifficulty.Should().Be("hard");
-        ai.Status.Should().Be("Stayed");      // acted first and stayed
-        ai.Numbers.Should().Equal(4);
+        ai.Numbers.Should().Equal(4);          // dealt
+        ai.Status.Should().Be("Active");        // has NOT acted yet
+        state.CurrentPlayerId.Should().Be(ai.Id); // AI is first; hub drives it
 
-        var human = state.Players.Single(p => !p.IsAi);
-        human.Numbers.Should().Equal(5);
-        state.CurrentPlayerId.Should().Be(human.Id);  // now the human's turn
+        // Driving the opening AI (what the hub does on connect) plays it out: the
+        // stub "stay" banks and passes the turn to the human.
+        Flip7GameStateDto? last = null;
+        await h.Svc().DriveAiAsync(state.Id, s => { last = s; return Task.CompletedTask; });
+
+        last.Should().NotBeNull();
+        last!.Players.Single(p => p.IsAi).Status.Should().Be("Stayed");
+        last.CurrentPlayerId.Should().Be(last.Players.Single(p => !p.IsAi).Id);
     }
 
     [Fact]
@@ -71,6 +78,7 @@ public class Flip7MultiplayerTests
     {
         var h = new Harness("stay", N(4), N(5), N(6), N(7));
         var created = await h.Svc().CreateGameAsync(Flip7GameMode.VsAi, Human, "alice", OneAi(), null);
+        await h.Svc().DriveAiAsync(created.Id, _ => Task.CompletedTask); // opening AI stays → human's turn
 
         var state = await h.Svc().StayAsync(created.Id, Human);
 
@@ -83,12 +91,16 @@ public class Flip7MultiplayerTests
     [Fact]
     public async Task Ai_chains_turns_to_flip7_once_the_human_is_inactive()
     {
-        // One card per turn: turn order [AI, human]. Deal AI=1, human=2; AI's first
-        // drive hits to [1,3] then passes. Human stays; with only the AI active it
+        // One card per turn: turn order [AI, human]. Deal AI=1, human=2. The opening
+        // AI drive hits to [1,3] then passes. Human stays; with only the AI active it
         // chains 4,5,6,7,8 → 7 unique → Flip 7.
         var h = new Harness("hit", N(1), N(2), N(3), N(4), N(5), N(6), N(7), N(8));
         var created = await h.Svc().CreateGameAsync(Flip7GameMode.VsAi, Human, "alice", OneAi(), null);
-        created.Players.Single(p => p.IsAi).Numbers.Should().Equal(1, 3); // hit once, then passed
+        created.Players.Single(p => p.IsAi).Numbers.Should().Equal(1); // dealt only, not acted
+
+        Flip7GameStateDto? afterOpening = null;
+        await h.Svc().DriveAiAsync(created.Id, s => { afterOpening = s; return Task.CompletedTask; });
+        afterOpening!.Players.Single(p => p.IsAi).Numbers.Should().Equal(1, 3); // hit once, then passed
 
         var state = await h.Svc().StayAsync(created.Id, Human);
 
@@ -98,6 +110,32 @@ public class Flip7MultiplayerTests
         ai.AchievedFlip7.Should().BeTrue();
         ai.CumulativeScore.Should().Be(1 + 3 + 4 + 5 + 6 + 7 + 8 + 15);
         state.Players.Single(p => !p.IsAi).CumulativeScore.Should().Be(2); // banked, not busted
+    }
+
+    [Fact]
+    public async Task Ai_turns_stream_one_update_per_beat_when_onUpdate_is_supplied()
+    {
+        // Same setup as the Flip 7 chain: after the human stays, only the AI is
+        // active and it hits 4,5,6,7,8 → Flip 7. With an onUpdate callback the
+        // service should surface each beat (the human's stay, then every AI turn)
+        // instead of one combined result.
+        var h = new Harness("hit", N(1), N(2), N(3), N(4), N(5), N(6), N(7), N(8));
+        var created = await h.Svc().CreateGameAsync(Flip7GameMode.VsAi, Human, "alice", OneAi(), null);
+        await h.Svc().DriveAiAsync(created.Id, _ => Task.CompletedTask); // opening AI turn → human's turn
+
+        var updates = new List<Flip7GameStateDto>();
+        var final = await h.Svc().StayAsync(created.Id, Human, state =>
+        {
+            updates.Add(state);
+            return Task.CompletedTask;
+        });
+
+        updates.Should().HaveCountGreaterThan(1);                 // streamed, not one shot
+        updates[0].Players.Single(p => !p.IsAi).Status.Should().Be("Stayed"); // human's beat first
+        updates.Should().OnlyContain(u => u.Events.Count > 0);    // every beat carries its events
+        updates.Last().RoundEnded.Should().BeTrue();
+        final.RoundEnded.Should().BeTrue();
+        final.Players.Single(p => p.IsAi).AchievedFlip7.Should().BeTrue();
     }
 
     [Fact]

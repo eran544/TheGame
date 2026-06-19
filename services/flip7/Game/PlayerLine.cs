@@ -32,6 +32,13 @@ public sealed class PlayerLine
     public PlayerLineStatus Status { get; set; } = PlayerLineStatus.Active;
     public bool AchievedFlip7 { get; set; }
 
+    /// <summary>
+    /// The duplicate number that busted this line. Set only when
+    /// <see cref="Status"/> is <see cref="PlayerLineStatus.Busted"/>; kept so the
+    /// UI can show which card ended the player's round.
+    /// </summary>
+    public int? BustedNumber { get; set; }
+
     public bool IsActive => Status == PlayerLineStatus.Active;
 
     /// <summary>Distinct number cards in the line (each is already unique).</summary>

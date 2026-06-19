@@ -66,16 +66,23 @@ const Flip7Board: React.FC<Flip7BoardProps> = ({
     const lines = events.map((e) => describeEvent(e, state)).filter((l): l is string => !!l);
     if (lines.length) setFeed((old) => [...old, ...lines]);
 
-    // Pick the most dramatic beat for the overlay, preferring my own events.
-    const mine = (id: string) => state.players.find((p) => p.id === id)?.userId === myUserId;
+    // Pick the most dramatic beat for the overlay. Busts fire for any player so
+    // you see opponents (including AI) go down, not just yourself.
+    const nameOf = (id: string) => state.players.find((p) => p.id === id)?.username ?? '';
+    const isMine = (id: string) => state.players.find((p) => p.id === id)?.userId === myUserId;
     const flip7 = events.find((e) => e.type === 'Flip7Achieved');
-    const myBust = events.find((e) => e.type === 'Busted' && mine(e.playerId));
-    const myFrozen = events.find((e) => e.type === 'Frozen' && mine(e.playerId));
+    const bust = events.find((e) => e.type === 'Busted');
+    const myFrozen = events.find((e) => e.type === 'Frozen' && isMine(e.playerId));
     if (flip7) {
-      const star = state.players.find((p) => p.id === flip7.playerId);
-      setAnnouncement({ kind: 'flip7', text: '⭐ FLIP 7! ⭐', sub: `${star?.username ?? ''} +15 bonus` });
-    } else if (myBust) {
-      setAnnouncement({ kind: 'bust', text: '💥 BUST!', sub: `Duplicate ${myBust.card} — 0 this round` });
+      setAnnouncement({ kind: 'flip7', text: '⭐ FLIP 7! ⭐', sub: `${nameOf(flip7.playerId)} +15 bonus` });
+    } else if (bust) {
+      setAnnouncement({
+        kind: 'bust',
+        text: '💥 BUST!',
+        sub: isMine(bust.playerId)
+          ? `Duplicate ${bust.card} — 0 this round`
+          : `${nameOf(bust.playerId)} busts on a duplicate ${bust.card}`,
+      });
     } else if (myFrozen) {
       setAnnouncement({ kind: 'frozen', text: '❄️ FROZEN', sub: 'Points banked' });
     }
@@ -146,7 +153,15 @@ const Flip7Board: React.FC<Flip7BoardProps> = ({
       {/* Player lines */}
       <div className={styles.playboard}>
         {state.players.map((p) => (
-          <div key={p.id} className={styles.playerBoardRow}>
+          <div
+            key={p.id}
+            className={[
+              styles.playerBoardRow,
+              pending && p.id === pending.drawerId ? styles.pickingRow : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+          >
             <div className={styles.rowLabel}>{p.username}&rsquo;s line</div>
             <div className={styles.cardLine}>
               {p.numbers.map((n, i) => (
@@ -175,9 +190,23 @@ const Flip7Board: React.FC<Flip7BoardProps> = ({
                   <span className={styles.mainValue}>🛡️</span>
                 </div>
               )}
-              {p.numbers.length === 0 && p.modifiers.length === 0 && !p.hasSecondChance && (
-                <span className={styles.waitingText}>No cards yet…</span>
+              {p.status === 'Frozen' && (
+                <div className={styles.freezeCard} title="Frozen this round">
+                  <span className={styles.cornerPip}>❄️</span>
+                  <span className={styles.mainValue}>❄️</span>
+                </div>
               )}
+              {p.status === 'Busted' && p.bustedNumber != null && (
+                <div className={styles.bustCard} title={`Busted on a duplicate ${p.bustedNumber}`}>
+                  <span className={styles.cornerPip}>💥</span>
+                  <span className={styles.mainValue}>{p.bustedNumber}</span>
+                </div>
+              )}
+              {p.numbers.length === 0 &&
+                p.modifiers.length === 0 &&
+                !p.hasSecondChance &&
+                p.status !== 'Frozen' &&
+                p.status !== 'Busted' && <span className={styles.waitingText}>No cards yet…</span>}
             </div>
           </div>
         ))}

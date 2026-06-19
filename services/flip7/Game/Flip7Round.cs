@@ -82,6 +82,7 @@ public sealed class Flip7Round
                 HasSecondChance = l.HasSecondChance,
                 Status = l.Status,
                 AchievedFlip7 = l.AchievedFlip7,
+                BustedNumber = l.BustedNumber,
             };
         }).ToList(),
         DrawPile = _drawPile.ToList(),
@@ -110,6 +111,7 @@ public sealed class Flip7Round
             line.HasSecondChance = ls.HasSecondChance;
             line.Status = ls.Status;
             line.AchievedFlip7 = ls.AchievedFlip7;
+            line.BustedNumber = ls.BustedNumber;
         }
         round._discard.AddRange(s.Discard);
         round._currentIndex = s.CurrentIndex;
@@ -401,6 +403,7 @@ public sealed class Flip7Round
             else
             {
                 recipient.Status = PlayerLineStatus.Busted;
+                recipient.BustedNumber = value; // remembered so the UI can show the duplicate
                 _discard.Add(card);
                 events.Add(new Flip7Event { Type = Flip7EventType.Busted, PlayerId = recipient.PlayerId, Card = card });
             }

@@ -47,7 +47,7 @@ public class Flip7GameService : IFlip7GameService
 
         var events = new List<Flip7Event>();
         var round = StartRound(session, events);
-        await FinishSetupAsync(session, round, events, ct); // no AI in solo; banks if a Freeze on the deal ended round 1
+        SettleDeal(session, round); // no AI in solo; banks if a Freeze on the deal ended round 1
 
         _db.GameSessions.Add(session);
         await _db.SaveChangesAsync(ct);
@@ -106,7 +106,9 @@ public class Flip7GameService : IFlip7GameService
             session.Status = Flip7GameStatus.InProgress;
             var events = new List<Flip7Event>();
             var round = StartRound(session, events);
-            await FinishSetupAsync(session, round, events, ct);
+            // Deal only — the opening AI turns are animated by the hub when the
+            // creator's client connects (DriveAiAsync), so round 1 plays out live too.
+            SettleDeal(session, round);
             _db.GameSessions.Add(session);
             await _db.SaveChangesAsync(ct);
             return Map(session, round, events);
@@ -147,7 +149,7 @@ public class Flip7GameService : IFlip7GameService
         return (await GetStateAsync(gameId, userId, ct))!;
     }
 
-    public async Task<Flip7GameStateDto> StartAsync(Guid gameId, Guid creatorUserId, CancellationToken ct = default)
+    public async Task<Flip7GameStateDto> StartAsync(Guid gameId, Guid creatorUserId, AiStepCallback? onUpdate = null, CancellationToken ct = default)
     {
         var session = await LoadAsync(gameId, ct) ?? throw new KeyNotFoundException("Game not found.");
         if (session.CreatedBy != creatorUserId)
@@ -160,19 +162,16 @@ public class Flip7GameService : IFlip7GameService
         session.Status = Flip7GameStatus.InProgress;
         var events = new List<Flip7Event>();
         var round = StartRound(session, events);
-        await FinishSetupAsync(session, round, events, ct);
-        session.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(ct);
-        return Map(session, round, events);
+        return await ResolveAndEmitAsync(session, round, events, onUpdate, ct);
     }
 
-    public Task<Flip7GameStateDto> HitAsync(Guid gameId, Guid userId, CancellationToken ct = default) =>
-        ApplyTurnAsync(gameId, userId, hit: true, ct);
+    public Task<Flip7GameStateDto> HitAsync(Guid gameId, Guid userId, AiStepCallback? onUpdate = null, CancellationToken ct = default) =>
+        ApplyTurnAsync(gameId, userId, hit: true, onUpdate, ct);
 
-    public Task<Flip7GameStateDto> StayAsync(Guid gameId, Guid userId, CancellationToken ct = default) =>
-        ApplyTurnAsync(gameId, userId, hit: false, ct);
+    public Task<Flip7GameStateDto> StayAsync(Guid gameId, Guid userId, AiStepCallback? onUpdate = null, CancellationToken ct = default) =>
+        ApplyTurnAsync(gameId, userId, hit: false, onUpdate, ct);
 
-    public async Task<Flip7GameStateDto> ChooseTargetAsync(Guid gameId, Guid userId, Guid targetPlayerId, CancellationToken ct = default)
+    public async Task<Flip7GameStateDto> ChooseTargetAsync(Guid gameId, Guid userId, Guid targetPlayerId, AiStepCallback? onUpdate = null, CancellationToken ct = default)
     {
         var session = await LoadAsync(gameId, ct) ?? throw new KeyNotFoundException("Game not found.");
         EnsureParticipant(session, userId);
@@ -188,22 +187,13 @@ public class Flip7GameService : IFlip7GameService
         if (round.PendingAction.DrawerId != player.Id)
             throw new InvalidOperationException("Only the player who drew the action card chooses its target.");
 
-        var chooser = ChooserFor(session, round);
         var events = new List<Flip7Event>();
-        events.AddRange(round.ResolveTarget(player.Id, targetPlayerId, chooser));
+        events.AddRange(round.ResolveTarget(player.Id, targetPlayerId, ChooserFor(session, round)));
 
-        await DriveAiTurnsAsync(session, round, chooser, events, ct);
-
-        if (round.RoundEnded)
-            BankRound(session, round);
-
-        session.RoundStateJson = Serialize(round.Capture());
-        session.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(ct);
-        return Map(session, round, events);
+        return await ResolveAndEmitAsync(session, round, events, onUpdate, ct);
     }
 
-    public async Task<Flip7GameStateDto> NextRoundAsync(Guid gameId, Guid userId, CancellationToken ct = default)
+    public async Task<Flip7GameStateDto> NextRoundAsync(Guid gameId, Guid userId, AiStepCallback? onUpdate = null, CancellationToken ct = default)
     {
         var session = await LoadAsync(gameId, ct) ?? throw new KeyNotFoundException("Game not found.");
         EnsureParticipant(session, userId);
@@ -218,11 +208,7 @@ public class Flip7GameService : IFlip7GameService
         session.DealerSeat = Flip7GameRules.NextDealerSeat(session.DealerSeat, session.Players.Count);
         var events = new List<Flip7Event>();
         var round = StartRound(session, events);
-        await FinishSetupAsync(session, round, events, ct);
-
-        session.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(ct);
-        return Map(session, round, events);
+        return await ResolveAndEmitAsync(session, round, events, onUpdate, ct);
     }
 
     public async Task<Flip7GameStateDto?> GetStateAsync(Guid gameId, Guid userId, CancellationToken ct = default)
@@ -235,7 +221,7 @@ public class Flip7GameService : IFlip7GameService
 
     // ---- Core turn application ------------------------------------------
 
-    private async Task<Flip7GameStateDto> ApplyTurnAsync(Guid gameId, Guid userId, bool hit, CancellationToken ct)
+    private async Task<Flip7GameStateDto> ApplyTurnAsync(Guid gameId, Guid userId, bool hit, AiStepCallback? onUpdate, CancellationToken ct)
     {
         var session = await LoadAsync(gameId, ct) ?? throw new KeyNotFoundException("Game not found.");
         EnsureParticipant(session, userId);
@@ -253,20 +239,11 @@ public class Flip7GameService : IFlip7GameService
         if (round.CurrentPlayerId != player.Id)
             throw new InvalidOperationException("It is not your turn.");
 
-        var chooser = ChooserFor(session, round);
         var events = new List<Flip7Event>();
-        if (hit) events.AddRange(round.Hit(player.Id, chooser));
+        if (hit) events.AddRange(round.Hit(player.Id, ChooserFor(session, round)));
         else events.AddRange(round.Stay(player.Id));
 
-        await DriveAiTurnsAsync(session, round, chooser, events, ct);
-
-        if (round.RoundEnded)
-            BankRound(session, round);
-
-        session.RoundStateJson = Serialize(round.Capture());
-        session.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(ct);
-        return Map(session, round, events);
+        return await ResolveAndEmitAsync(session, round, events, onUpdate, ct);
     }
 
     // ---- Round lifecycle ------------------------------------------------
@@ -284,21 +261,75 @@ public class Flip7GameService : IFlip7GameService
         return round;
     }
 
-    /// <summary>After a round is dealt/advanced: let AI players act, bank if it ended, then snapshot.</summary>
-    private async Task FinishSetupAsync(Flip7GameSession session, Flip7Round round, List<Flip7Event> events, CancellationToken ct)
+    /// <summary>
+    /// Finalizes a freshly dealt round at creation time (REST, no live streaming):
+    /// banks if the deal alone ended the round (e.g. a Freeze on the solo deal),
+    /// then snapshots. The caller saves. Opening AI turns are deliberately NOT
+    /// played here — the hub animates them when a client connects (see
+    /// <see cref="DriveAiAsync"/>) so players watch the AI's first turns too.
+    /// </summary>
+    private void SettleDeal(Flip7GameSession session, Flip7Round round)
     {
-        await DriveAiTurnsAsync(session, round, ChooserFor(session, round), events, ct);
         if (round.RoundEnded)
             BankRound(session, round);
         session.RoundStateJson = Serialize(round.Capture());
     }
 
     /// <summary>
+    /// If it is currently an AI's turn (round in progress, nothing pending), plays
+    /// the AI turns out and emits each beat via <paramref name="onUpdate"/>; a no-op
+    /// otherwise. The hub calls this when a client connects so a vs-AI game's opening
+    /// AI turns are animated live rather than resolved before anyone is watching.
+    /// </summary>
+    public async Task DriveAiAsync(Guid gameId, AiStepCallback onUpdate, CancellationToken ct = default)
+    {
+        var session = await LoadAsync(gameId, ct);
+        if (session is null || session.Status != Flip7GameStatus.InProgress) return;
+
+        var round = RestoreRound(session);
+        if (round is null || round.RoundEnded || round.PendingAction is not null) return;
+        if (round.CurrentPlayerId is not Guid current) return;
+        if (!session.Players.First(p => p.Id == current).IsAi) return;
+
+        var events = new List<Flip7Event>();
+        await DriveAiTurnsAsync(session, round, ChooserFor(session, round), events, onUpdate, ct);
+        await PersistAsync(session, round, ct);
+    }
+
+    /// <summary>
+    /// Settles a base action (a human turn or a fresh deal) and the AI turns that
+    /// follow it. When <paramref name="onUpdate"/> is supplied (the live hub path)
+    /// each beat — the base action, then every AI turn — is persisted and pushed
+    /// individually so all players watch the AI act in real time. Otherwise
+    /// everything resolves in one shot and is saved once (REST/solo/tests).
+    /// </summary>
+    private async Task<Flip7GameStateDto> ResolveAndEmitAsync(
+        Flip7GameSession session, Flip7Round round, List<Flip7Event> events,
+        AiStepCallback? onUpdate, CancellationToken ct)
+    {
+        if (round.RoundEnded)
+            BankRound(session, round); // the base action itself ended the round
+
+        if (onUpdate is not null)
+        {
+            await PersistAsync(session, round, ct);
+            await onUpdate(Map(session, round, events)); // base beat, shown immediately
+        }
+
+        await DriveAiTurnsAsync(session, round, ChooserFor(session, round), events, onUpdate, ct);
+
+        await PersistAsync(session, round, ct);
+        return Map(session, round, events);
+    }
+
+    /// <summary>
     /// Plays out consecutive AI turns until a human is on turn, the round ends,
     /// or a human's choice is pending. AI drawers auto-target, so AI play never
-    /// suspends.
+    /// suspends. With <paramref name="onUpdate"/> set, each AI turn is persisted
+    /// and emitted as its own update (the hub paces these with delays).
     /// </summary>
-    private async Task DriveAiTurnsAsync(Flip7GameSession session, Flip7Round round, TargetChooser chooser, List<Flip7Event> events, CancellationToken ct)
+    private async Task DriveAiTurnsAsync(Flip7GameSession session, Flip7Round round, TargetChooser chooser,
+        List<Flip7Event> events, AiStepCallback? onUpdate, CancellationToken ct)
     {
         int guard = 0;
         while (!round.RoundEnded && round.PendingAction is null && round.CurrentPlayerId is Guid current)
@@ -307,15 +338,33 @@ public class Flip7GameService : IFlip7GameService
             if (!player.IsAi) break;
             if (++guard > AiTurnSafetyLimit) break;
 
+            var beat = new List<Flip7Event>();
             var line = round.Line(player.Id);
             bool canStay = line.Numbers.Count > 0 || line.Modifiers.Count > 0;
 
             var action = await _ai.DecideHitOrStayAsync(BuildAiRequest(session, round, player), ct);
             if (action == "stay" && canStay)
-                events.AddRange(round.Stay(player.Id));
+                beat.AddRange(round.Stay(player.Id));
             else
-                events.AddRange(round.Hit(player.Id, chooser));
+                beat.AddRange(round.Hit(player.Id, chooser));
+
+            events.AddRange(beat);
+            if (round.RoundEnded)
+                BankRound(session, round); // this AI turn ended the round
+
+            if (onUpdate is not null)
+            {
+                await PersistAsync(session, round, ct);
+                await onUpdate(Map(session, round, beat)); // this AI turn, on its own
+            }
         }
+    }
+
+    private async Task PersistAsync(Flip7GameSession session, Flip7Round round, CancellationToken ct)
+    {
+        session.RoundStateJson = Serialize(round.Capture());
+        session.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
     }
 
     private static Flip7AiMoveRequest BuildAiRequest(Flip7GameSession session, Flip7Round round, Flip7Player me)
@@ -500,6 +549,7 @@ public class Flip7GameService : IFlip7GameService
             HasSecondChance = line?.HasSecondChance ?? false,
             Status = (line?.Status ?? PlayerLineStatus.Active).ToString(),
             AchievedFlip7 = line?.AchievedFlip7 ?? false,
+            BustedNumber = line?.BustedNumber,
             RoundScore = line?.Score ?? 0,
         };
     }

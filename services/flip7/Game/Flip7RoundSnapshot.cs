@@ -44,4 +44,7 @@ public sealed class PlayerLineSnapshot
     public bool HasSecondChance { get; set; }
     public PlayerLineStatus Status { get; set; } = PlayerLineStatus.Active;
     public bool AchievedFlip7 { get; set; }
+
+    /// <summary>The duplicate that busted this line; null unless the line busted.</summary>
+    public int? BustedNumber { get; set; }
 }

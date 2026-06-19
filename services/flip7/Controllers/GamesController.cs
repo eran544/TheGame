@@ -45,7 +45,7 @@ public class GamesController : ControllerBase
 
     [HttpPost("{gameId:guid}/start")]
     public Task<ActionResult<Flip7GameStateDto>> Start(Guid gameId, CancellationToken ct) =>
-        Run(() => _games.StartAsync(gameId, Identity().userId, ct));
+        Run(() => _games.StartAsync(gameId, Identity().userId, ct: ct));
 
     [HttpGet("{gameId:guid}")]
     public async Task<ActionResult<Flip7GameStateDto>> Get(Guid gameId, CancellationToken ct)
@@ -56,19 +56,19 @@ public class GamesController : ControllerBase
 
     [HttpPost("{gameId:guid}/hit")]
     public Task<ActionResult<Flip7GameStateDto>> Hit(Guid gameId, CancellationToken ct) =>
-        Run(() => _games.HitAsync(gameId, Identity().userId, ct));
+        Run(() => _games.HitAsync(gameId, Identity().userId, ct: ct));
 
     [HttpPost("{gameId:guid}/stay")]
     public Task<ActionResult<Flip7GameStateDto>> Stay(Guid gameId, CancellationToken ct) =>
-        Run(() => _games.StayAsync(gameId, Identity().userId, ct));
+        Run(() => _games.StayAsync(gameId, Identity().userId, ct: ct));
 
     [HttpPost("{gameId:guid}/choose-target")]
     public Task<ActionResult<Flip7GameStateDto>> ChooseTarget(Guid gameId, [FromBody] ChooseTargetRequest request, CancellationToken ct) =>
-        Run(() => _games.ChooseTargetAsync(gameId, Identity().userId, request.TargetPlayerId, ct));
+        Run(() => _games.ChooseTargetAsync(gameId, Identity().userId, request.TargetPlayerId, ct: ct));
 
     [HttpPost("{gameId:guid}/next-round")]
     public Task<ActionResult<Flip7GameStateDto>> NextRound(Guid gameId, CancellationToken ct) =>
-        Run(() => _games.NextRoundAsync(gameId, Identity().userId, ct));
+        Run(() => _games.NextRoundAsync(gameId, Identity().userId, ct: ct));
 
     private async Task<ActionResult<Flip7GameStateDto>> Run(Func<Task<Flip7GameStateDto>> action)
     {

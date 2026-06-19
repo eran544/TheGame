@@ -183,6 +183,22 @@ public class Flip7GameServiceTests
     }
 
     [Fact]
+    public async Task Busted_line_remembers_the_duplicate_number_on_the_player_state()
+    {
+        var h = new Harness(N(3), N(5), N(3));
+        var created = await h.Svc().CreateSoloAsync(User, "alice", null);
+        await h.Svc().HitAsync(created.Id, User);              // [3,5]
+        var state = await h.Svc().HitAsync(created.Id, User);  // 3 dup → bust
+
+        state.Players[0].Status.Should().Be("Busted");
+        state.Players[0].BustedNumber.Should().Be(3);
+
+        // Survives a reload (it is part of the persisted round snapshot).
+        var fetched = await h.Svc().GetStateAsync(created.Id, User);
+        fetched!.Players[0].BustedNumber.Should().Be(3);
+    }
+
+    [Fact]
     public async Task Solo_freeze_suspends_for_a_self_target_choice()
     {
         var h = new Harness(N(5), Act(ActionKind.Freeze));

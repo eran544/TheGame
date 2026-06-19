@@ -37,6 +37,9 @@ public record Flip7PlayerStateDto
     public required string Status { get; init; }
     public required bool AchievedFlip7 { get; init; }
 
+    /// <summary>The duplicate number that busted this line; null unless busted.</summary>
+    public int? BustedNumber { get; init; }
+
     /// <summary>The line's current banked value (0 if busted).</summary>
     public required int RoundScore { get; init; }
 }

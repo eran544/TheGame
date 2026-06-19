@@ -24,6 +24,8 @@ export interface Flip7PlayerState {
   hasSecondChance: boolean;
   status: Flip7LineStatus;
   achievedFlip7: boolean;
+  /** The duplicate number that busted this line; null unless busted. */
+  bustedNumber?: number | null;
   roundScore: number;
 }
 
