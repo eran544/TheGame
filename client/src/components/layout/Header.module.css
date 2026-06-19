@@ -7,19 +7,21 @@
   justify-content: space-between;
   height: var(--header-height);
   padding: 0 var(--space-6);
-  background-color: var(--color-bg-secondary);
-  border-bottom: 1px solid var(--color-border);
-  box-shadow: var(--shadow-sm);
+  background: rgba(6, 7, 12, 0.6);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
 
 .logo {
-  font-family: var(--font-family-display);
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.1em;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-md);
+  font-weight: 800;
+  letter-spacing: 0.15em;
   color: var(--color-text);
   text-decoration: none;
   text-transform: uppercase;
+  transition: text-shadow var(--transition-base);
 }
 
 .logo span {
@@ -29,6 +31,7 @@
 .logo:hover {
   text-decoration: none;
   color: var(--color-text);
+  text-shadow: 0 0 10px rgba(255, 61, 96, 0.6);
 }
 
 .right {
@@ -52,13 +55,15 @@
   font-weight: var(--font-weight-semibold);
   color: var(--color-accent);
   text-decoration: none;
-  padding: 0.2rem 0.5rem;
+  padding: 0.25rem 0.6rem;
   border: 1px solid var(--color-accent);
-  border-radius: 4px;
-  transition: background 0.15s;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-base);
 }
 
 .adminLink:hover {
-  background: rgba(var(--color-accent-rgb, 99, 102, 241), 0.1);
+  background: var(--color-accent-muted);
+  box-shadow: 0 0 10px rgba(255, 61, 96, 0.35);
   text-decoration: none;
 }
+

@@ -1,5 +1,4 @@
-const baseUrl =
-  import.meta.env.REACT_APP_API_BASE_URL ?? 'http://localhost:5001';
+import { AUTH_URL, THEGAME_URL, FLIP7_URL } from './config';
 
 async function handleResponse<T>(response: Response): Promise<T> {
   if (response.ok) {
@@ -39,34 +38,53 @@ function buildHeaders(token?: string): HeadersInit {
   return headers;
 }
 
-export async function get<T>(path: string, token?: string): Promise<T> {
-  const response = await fetch(`${baseUrl}${path}`, {
-    method: 'GET',
-    headers: buildHeaders(token),
-  });
-  return handleResponse<T>(response);
+export interface ApiClient {
+  get<T>(path: string, token?: string): Promise<T>;
+  post<T>(path: string, body: unknown, token?: string): Promise<T>;
+  delete<T>(path: string, token?: string): Promise<T>;
 }
 
-export async function post<T>(
-  path: string,
-  body: unknown,
-  token?: string
-): Promise<T> {
-  const response = await fetch(`${baseUrl}${path}`, {
-    method: 'POST',
-    headers: buildHeaders(token),
-    body: JSON.stringify(body),
-  });
-  return handleResponse<T>(response);
+/** Builds a small fetch wrapper bound to one service's base URL. */
+export function createApiClient(baseUrl: string): ApiClient {
+  return {
+    async get<T>(path: string, token?: string): Promise<T> {
+      const response = await fetch(`${baseUrl}${path}`, {
+        method: 'GET',
+        headers: buildHeaders(token),
+      });
+      return handleResponse<T>(response);
+    },
+
+    async post<T>(path: string, body: unknown, token?: string): Promise<T> {
+      const response = await fetch(`${baseUrl}${path}`, {
+        method: 'POST',
+        headers: buildHeaders(token),
+        body: JSON.stringify(body),
+      });
+      return handleResponse<T>(response);
+    },
+
+    async delete<T>(path: string, token?: string): Promise<T> {
+      const response = await fetch(`${baseUrl}${path}`, {
+        method: 'DELETE',
+        headers: buildHeaders(token),
+      });
+      return handleResponse<T>(response);
+    },
+  };
 }
 
-export async function del<T>(path: string, token?: string): Promise<T> {
-  const response = await fetch(`${baseUrl}${path}`, {
-    method: 'DELETE',
-    headers: buildHeaders(token),
-  });
-  return handleResponse<T>(response);
-}
+/** Auth service — login/register/logout/me. */
+export const authClient = createApiClient(AUTH_URL);
 
-const apiClient = { get, post, delete: del };
+/** Flip 7 service — solo + multiplayer game API. */
+export const flip7Client = createApiClient(FLIP7_URL);
+
+/** The Game service. Default export so existing api modules keep working. */
+const apiClient = createApiClient(THEGAME_URL);
 export default apiClient;
+
+/** Named helpers bound to The Game service (legacy import style). */
+export const get = apiClient.get;
+export const post = apiClient.post;
+export const del = apiClient.delete;

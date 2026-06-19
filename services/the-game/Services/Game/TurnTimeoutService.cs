@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using TheGameServer.Data;
 using TheGameServer.Hubs;
+using TheGameServer.Mappers;
 
 namespace TheGameServer.Services.Game;
 
@@ -9,6 +10,9 @@ public class TurnTimeoutService : BackgroundService
 {
     private static readonly TimeSpan TurnTimeout = TimeSpan.FromSeconds(90);
     private static readonly TimeSpan CheckInterval = TimeSpan.FromSeconds(30);
+
+    // Delay between streamed AI catch-up turns so a takeover reads like real turns.
+    private const int TurnBeatDelayMs = 800;
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IHubContext<GameHub> _hub;
@@ -69,7 +73,25 @@ public class TurnTimeoutService : BackgroundService
     private async Task ProcessTimedOutSessionAsync(IServiceProvider services, Guid sessionId)
     {
         var gameService = services.GetRequiredService<IGameService>();
-        var result = await gameService.TimeoutCurrentPlayerAsync(sessionId);
+        var group = _hub.Clients.Group(GameHub.GroupName(sessionId.ToString()));
+
+        // Announce the AI takeover, then stream the AI's catch-up turns paced like real
+        // turns. This runs in the background service's own scope with an IHubContext, so
+        // awaiting the paced beats here is safe.
+        var beats = 0;
+        Func<string, string, Task> onReplaced = (disconnected, ai) =>
+        {
+            _logger.LogInformation("Player {Player} timed out in session {SessionId}, replaced by {AI}",
+                disconnected, sessionId, ai);
+            return group.SendAsync("PlayerReplacedByAI", new { disconnectedUsername = disconnected, aiUsername = ai });
+        };
+        Func<GameStateView, Task> onTurn = async view =>
+        {
+            if (beats++ > 0) await Task.Delay(TurnBeatDelayMs);
+            await group.SendAsync("GameStateUpdated", GameViewMapper.ToDto(view));
+        };
+
+        var result = await gameService.TimeoutCurrentPlayerAsync(sessionId, onReplaced, onTurn);
 
         if (!result.Success)
         {
@@ -78,27 +100,16 @@ public class TurnTimeoutService : BackgroundService
         }
 
         var outcome = result.Value!;
-        var group = _hub.Clients.Group(GameHub.GroupName(sessionId.ToString()));
-
-        _logger.LogInformation("Player {Player} timed out in session {SessionId}, replaced by {AI}",
-            outcome.DisconnectedUsername, sessionId, outcome.ReplacedByAIUsername);
-
-        await group.SendAsync("PlayerReplacedByAI", new
-        {
-            disconnectedUsername = outcome.DisconnectedUsername,
-            aiUsername = outcome.ReplacedByAIUsername
-        });
-
         if (outcome.GameEnded)
         {
             if (outcome.State is not null)
-                await group.SendAsync("GameEnded", outcome.State);
+                await group.SendAsync("GameEnded", GameViewMapper.ToDto(outcome.State));
             else
                 await group.SendAsync("GameEnded", new { reason = outcome.EndReason });
         }
         else if (outcome.State is not null)
         {
-            await group.SendAsync("GameStateUpdated", outcome.State);
+            await group.SendAsync("GameStateUpdated", GameViewMapper.ToDto(outcome.State));
         }
     }
 }

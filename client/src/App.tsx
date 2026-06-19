@@ -5,7 +5,10 @@ import AdminRoute from './routes/AdminRoute';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import GameSelectionPage from './pages/GameSelectionPage';
-import Flip7ComingSoonPage from './pages/Flip7ComingSoonPage';
+import Flip7MenuPage from './pages/Flip7MenuPage';
+import Flip7SetupPage from './pages/Flip7SetupPage';
+import Flip7SoloPage from './pages/Flip7SoloPage';
+import Flip7GamePage from './pages/Flip7GamePage';
 import MainMenuPage from './pages/MainMenuPage';
 import GamePage from './pages/GamePage';
 import MultiplayerPage from './pages/MultiplayerPage';
@@ -27,8 +30,11 @@ const App: React.FC = () => {
         {/* Game selection landing */}
         <Route path="/" element={<GameSelectionPage />} />
 
-        {/* Flip 7 (Phase 2) */}
-        <Route path="/flip7" element={<Flip7ComingSoonPage />} />
+        {/* Flip 7 */}
+        <Route path="/flip7" element={<Flip7MenuPage />} />
+        <Route path="/flip7/setup/:mode" element={<Flip7SetupPage />} />
+        <Route path="/flip7/solo/:gameId" element={<Flip7SoloPage />} />
+        <Route path="/flip7/game/:gameId" element={<Flip7GamePage />} />
 
         {/* The Game */}
         <Route path="/the-game" element={<MainMenuPage />} />

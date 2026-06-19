@@ -1,0 +1,93 @@
+/** Mirrors Flip7Server.DTOs (ASP.NET serializes PascalCase → camelCase). */
+
+export type Flip7Mode = 'Solo' | 'VsAi' | 'Online';
+export type Flip7GameStatus = 'Lobby' | 'InProgress' | 'Completed';
+export type Flip7LineStatus = 'Active' | 'Stayed' | 'Frozen' | 'Busted';
+export type Flip7AiStyle = 'safe' | 'balanced' | 'risky';
+export type Flip7AiDifficulty = 'easy' | 'medium' | 'hard';
+
+/** Modifier names come from the server enum: Plus2…Plus10, Times2. */
+export type Flip7Modifier = 'Plus2' | 'Plus4' | 'Plus6' | 'Plus8' | 'Plus10' | 'Times2';
+
+export interface Flip7PlayerState {
+  id: string;
+  userId: string;
+  username: string;
+  seat: number;
+  isAi: boolean;
+  aiStyle?: Flip7AiStyle | null;
+  aiDifficulty?: Flip7AiDifficulty | null;
+  cumulativeScore: number;
+
+  numbers: number[];
+  modifiers: Flip7Modifier[];
+  hasSecondChance: boolean;
+  status: Flip7LineStatus;
+  achievedFlip7: boolean;
+  /** The duplicate number that busted this line; null unless busted. */
+  bustedNumber?: number | null;
+  roundScore: number;
+}
+
+export type Flip7EventType =
+  | 'NumberAdded'
+  | 'ModifierAdded'
+  | 'ActionDrawn'
+  | 'Busted'
+  | 'SecondChanceGained'
+  | 'SecondChancePassed'
+  | 'SecondChanceUsed'
+  | 'SecondChanceDiscarded'
+  | 'Frozen'
+  | 'FlipThreeStarted'
+  | 'Flip7Achieved'
+  | 'Stayed'
+  | 'RoundEnded';
+
+export interface Flip7Event {
+  type: Flip7EventType;
+  playerId: string;
+  sourcePlayerId?: string | null;
+  /** Card label: "7", "+10", "x2", "Freeze", "FlipThree". */
+  card?: string | null;
+  detail?: string | null;
+}
+
+/** An action card (Freeze / Flip Three) awaiting its drawer's target choice. */
+export interface Flip7PendingAction {
+  action: 'Freeze' | 'FlipThree';
+  drawerId: string;
+  candidateIds: string[];
+}
+
+export interface Flip7GameState {
+  id: string;
+  mode: Flip7Mode;
+  status: Flip7GameStatus;
+  targetScore: number;
+  roundNumber: number;
+  dealerSeat: number;
+  currentPlayerId?: string | null;
+  roundEnded: boolean;
+  roundEndReason: string;
+  winnerId?: string | null;
+  players: Flip7PlayerState[];
+  pendingAction?: Flip7PendingAction | null;
+  events?: Flip7Event[];
+  actionId?: string | null;
+}
+
+export interface Flip7AiSpec {
+  username?: string;
+  style: Flip7AiStyle;
+  difficulty: Flip7AiDifficulty;
+}
+
+export const MODIFIER_LABELS: Record<Flip7Modifier, string> = {
+  Plus2: '+2',
+  Plus4: '+4',
+  Plus6: '+6',
+  Plus8: '+8',
+  Plus10: '+10',
+  Times2: 'x2',
+};

@@ -11,7 +11,10 @@ public interface IGameService
 {
     // Single-player
     Task<GameResultEnvelope<GameStateView>> StartSinglePlayerGameAsync(Guid userId, bool isExpertMode = false);
-    Task<GameResultEnvelope<TurnOutcome>> PlayTurnAsync(Guid sessionId, Guid userId, IList<CardPlay> plays);
+    // onTurn (optional) is invoked once per resolved turn — the human's, then each
+    // AI's — so callers can broadcast intermediate states and watch play unfold.
+    Task<GameResultEnvelope<TurnOutcome>> PlayTurnAsync(
+        Guid sessionId, Guid userId, IList<CardPlay> plays, Func<GameStateView, Task>? onTurn = null);
     Task<GameResultEnvelope<GameStateView>> GetGameStateAsync(Guid sessionId, Guid userId);
     Task<GameResultEnvelope<bool>> AbandonGameAsync(Guid sessionId, Guid userId);
     Task<GameResultEnvelope<GameStateView>> UndoLastMoveAsync(Guid sessionId, Guid userId);
@@ -20,14 +23,24 @@ public interface IGameService
     Task<GameResultEnvelope<LobbyView>> CreateMultiplayerGameAsync(Guid userId, int maxPlayers, bool isExpertMode = false);
     Task<GameResultEnvelope<LobbyView>> JoinGameAsync(Guid sessionId, Guid userId);
     Task<GameResultEnvelope<GameStateView>> StartMultiplayerGameAsync(Guid sessionId, Guid userId);
-    Task<GameResultEnvelope<LeaveResult>> LeaveGameAsync(Guid sessionId, Guid userId);
+    // When a disconnect hands a turn to an AI replacement, onReplaced fires once with
+    // (disconnectedUsername, aiUsername) before any AI play, then onTurn fires per AI
+    // turn — so callers announce the swap, then stream the AI's catch-up turns in order.
+    Task<GameResultEnvelope<LeaveResult>> LeaveGameAsync(
+        Guid sessionId, Guid userId,
+        Func<string, string, Task>? onReplaced = null,
+        Func<GameStateView, Task>? onTurn = null);
     Task<GameResultEnvelope<LobbyView>> GetLobbyStateAsync(Guid sessionId, Guid userId);
     Task<GameResultEnvelope<LobbyView>> AddAIPlayerAsync(Guid sessionId, Guid userId);
     Task<GameResultEnvelope<LobbyView>> RemoveAIPlayerAsync(Guid sessionId, Guid userId, Guid aiUserId);
 
     // Disconnection & reconnection
     Task<GameResultEnvelope<ReconnectResult>> ReconnectPlayerAsync(Guid sessionId, Guid userId);
-    Task<GameResultEnvelope<TimeoutResult>> TimeoutCurrentPlayerAsync(Guid sessionId);
+    // Same streaming contract as LeaveGameAsync: onReplaced once, then onTurn per AI turn.
+    Task<GameResultEnvelope<TimeoutResult>> TimeoutCurrentPlayerAsync(
+        Guid sessionId,
+        Func<string, string, Task>? onReplaced = null,
+        Func<GameStateView, Task>? onTurn = null);
 }
 
 public record LeaveResult(
@@ -166,7 +179,8 @@ public class GameService : IGameService
         return GameResultEnvelope<GameStateView>.Ok(BuildView(session, state, hand, drawPile, finalScore: null));
     }
 
-    public async Task<GameResultEnvelope<TurnOutcome>> PlayTurnAsync(Guid sessionId, Guid userId, IList<CardPlay> plays)
+    public async Task<GameResultEnvelope<TurnOutcome>> PlayTurnAsync(
+        Guid sessionId, Guid userId, IList<CardPlay> plays, Func<GameStateView, Task>? onTurn = null)
     {
         var context = await LoadGameContextAsync(sessionId, userId);
         if (context.Error is not null)
@@ -350,17 +364,22 @@ public class GameService : IGameService
             plays.Select(p => new LastMovePlay(p.Card, (int)p.Slot)).ToList());
         var recentMoves = isSinglePlayer ? null : new List<LastMove> { humanMove };
 
-        // After human's turn, execute any consecutive AI turns
+        // Stream the human's move to the group right away (multiplayer) so others
+        // see it before the AI players take their turns one at a time below.
+        if (!isSinglePlayer && onTurn is not null)
+            await onTurn(BuildViewForBroadcast(session, state, drawPile, finalScore, recentMoves));
+
+        // After the human's turn, play out consecutive AI turns. Each AI move is
+        // appended to recentMoves and (when onTurn is set) emitted as its own beat.
         if (!gameEnded && !isSinglePlayer && nextPlayerForAI?.IsAI == true)
         {
-            var aiResult = await HandleAITurnsAsync(session, state, drawPile);
+            var aiResult = await HandleAITurnsAsync(session, state, drawPile, recentMoves, onTurn);
             if (aiResult.GameEnded)
             {
                 gameEnded = true;
                 endReason = aiResult.EndReason;
                 finalScore = aiResult.FinalScore;
             }
-            recentMoves!.AddRange(aiResult.AIMoves);
         }
 
         var allPlayers = BuildPlayersInGame(session, state, userId, newHand);
@@ -615,11 +634,15 @@ public class GameService : IGameService
         return GameResultEnvelope<GameStateView>.Ok(BuildView(session, state, requestingHand, drawPile, null, allPlayersView));
     }
 
-    public async Task<GameResultEnvelope<LeaveResult>> LeaveGameAsync(Guid sessionId, Guid userId)
+    public async Task<GameResultEnvelope<LeaveResult>> LeaveGameAsync(
+        Guid sessionId, Guid userId,
+        Func<string, string, Task>? onReplaced = null,
+        Func<GameStateView, Task>? onTurn = null)
     {
         var session = await _db.GameSessions
             .Include(s => s.State)
             .Include(s => s.Players).ThenInclude(p => p.Hand)
+            .Include(s => s.Players).ThenInclude(p => p.User)
             .SingleOrDefaultAsync(s => s.Id == sessionId);
 
         if (session is null) return GameResultEnvelope<LeaveResult>.Fail("Game session not found");
@@ -696,24 +719,29 @@ public class GameService : IGameService
                 return GameResultEnvelope<LeaveResult>.Ok(new LeaveResult(true, disconnectedUsername));
             }
 
+            // Announce the swap before any AI play so clients can show "X replaced by AI"
+            // and then watch the AI take over in order.
+            if (onReplaced is not null)
+                await onReplaced(disconnectedUsername, aiUsername);
+
             // If it was the disconnected player's turn, the AI now holds the turn.
-            // Run AI turns and build a broadcast state from the first remaining human's perspective.
-            GameStateView? stateView = null;
+            // Stream those AI turns (onTurn paces each one) and build a broadcast state.
             var state = session.State!;
             var drawPile = JsonSerializer.Deserialize<List<int>>(state.DrawPileCards) ?? [];
+            var recentMoves = new List<LastMove>();
 
             if (state.CurrentPlayerId != null && session.Players.Any(p => p.UserId == state.CurrentPlayerId && p.IsAI))
             {
-                var aiResult = await HandleAITurnsAsync(session, state, drawPile);
+                var aiResult = await HandleAITurnsAsync(session, state, drawPile, recentMoves, onTurn);
                 if (aiResult.GameEnded)
                 {
                     return GameResultEnvelope<LeaveResult>.Ok(new LeaveResult(
                         true, disconnectedUsername, aiUsername,
-                        BuildViewForBroadcast(session, state, drawPile, aiResult.FinalScore)));
+                        BuildViewForBroadcast(session, state, drawPile, aiResult.FinalScore, recentMoves)));
                 }
             }
 
-            stateView = BuildViewForBroadcast(session, state, drawPile, null);
+            var stateView = BuildViewForBroadcast(session, state, drawPile, null, recentMoves);
             return GameResultEnvelope<LeaveResult>.Ok(new LeaveResult(false, disconnectedUsername, aiUsername, stateView));
         }
 
@@ -842,7 +870,10 @@ public class GameService : IGameService
         return GameResultEnvelope<ReconnectResult>.Ok(new ReconnectResult(username, stateView));
     }
 
-    public async Task<GameResultEnvelope<TimeoutResult>> TimeoutCurrentPlayerAsync(Guid sessionId)
+    public async Task<GameResultEnvelope<TimeoutResult>> TimeoutCurrentPlayerAsync(
+        Guid sessionId,
+        Func<string, string, Task>? onReplaced = null,
+        Func<GameStateView, Task>? onTurn = null)
     {
         var session = await _db.GameSessions
             .Include(s => s.State)
@@ -887,9 +918,14 @@ public class GameService : IGameService
             return GameResultEnvelope<TimeoutResult>.Ok(new TimeoutResult(disconnectedUsername, "", null, true, "disconnection"));
         }
 
+        // Announce the swap before any AI play, then stream the AI's catch-up turns.
+        if (onReplaced is not null)
+            await onReplaced(disconnectedUsername, aiUsername);
+
         var drawPile = JsonSerializer.Deserialize<List<int>>(state.DrawPileCards) ?? [];
-        var aiResult = await HandleAITurnsAsync(session, state, drawPile);
-        var broadcastState = BuildViewForBroadcast(session, state, drawPile, aiResult.FinalScore);
+        var recentMoves = new List<LastMove>();
+        var aiResult = await HandleAITurnsAsync(session, state, drawPile, recentMoves, onTurn);
+        var broadcastState = BuildViewForBroadcast(session, state, drawPile, aiResult.FinalScore, recentMoves);
 
         return GameResultEnvelope<TimeoutResult>.Ok(new TimeoutResult(
             disconnectedUsername, aiUsername, broadcastState, aiResult.GameEnded, aiResult.EndReason));
@@ -944,7 +980,8 @@ public class GameService : IGameService
 
     // Builds a game state view without a specific player's hand (safe to broadcast to the whole group).
     private static GameStateView BuildViewForBroadcast(
-        GameSession session, GameState state, List<int> drawPile, GameScore? finalScore)
+        GameSession session, GameState state, List<int> drawPile, GameScore? finalScore,
+        IList<LastMove>? recentMoves = null)
     {
         var activePlayers = session.Players
             .Where(p => !p.IsSpectator)
@@ -959,12 +996,16 @@ public class GameService : IGameService
             })
             .ToList<PlayerInGame>();
 
-        return BuildView(session, state, [], drawPile, finalScore, activePlayers);
+        // Snapshot recentMoves: callers keep appending to the live list across
+        // turns, so each broadcast must capture the moves as they stand right now.
+        return BuildView(session, state, [], drawPile, finalScore, activePlayers, recentMoves?.ToList());
     }
 
     // ── AI turn handling ────────────────────────────────────────────────────
 
-    private async Task<AiTurnResult> HandleAITurnsAsync(GameSession session, GameState state, List<int> drawPile)
+    private async Task<AiTurnResult> HandleAITurnsAsync(
+        GameSession session, GameState state, List<int> drawPile,
+        IList<LastMove>? recentMoves = null, Func<GameStateView, Task>? onTurn = null)
     {
         var aiMoves = new List<LastMove>();
 
@@ -1041,8 +1082,18 @@ public class GameService : IGameService
                 Plays = aiPlays.Select(p => new MoveHistoryPlay { Card = p.Card, PileSlot = (int)p.Slot }).ToList()
             });
 
-            aiMoves.Add(new LastMove(aiUsername,
-                aiPlays.Select(p => new LastMovePlay(p.Card, (int)p.Slot)).ToList()));
+            var aiMove = new LastMove(aiUsername,
+                aiPlays.Select(p => new LastMovePlay(p.Card, (int)p.Slot)).ToList());
+            aiMoves.Add(aiMove);
+            recentMoves?.Add(aiMove);
+
+            // Emit this AI's turn as its own beat (with the moves so far) so players
+            // watch each opponent play in order. The caller paces the broadcasts.
+            if (onTurn is not null)
+            {
+                await _db.SaveChangesAsync(); // persist this turn before broadcasting it
+                await onTurn(BuildViewForBroadcast(session, state, drawPile, null, recentMoves));
+            }
 
             bool perfectGame = newAiHand.Count == 0 && drawPile.Count == 0
                 && activePlayers.Where(p => p.UserId != currentPlayer.UserId)

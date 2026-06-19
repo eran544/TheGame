@@ -1,9 +1,16 @@
 .board {
   display: flex;
-  gap: 1rem;
+  gap: var(--space-6);
   justify-content: center;
   flex-wrap: wrap;
   transition: opacity 0.15s ease;
+  padding: var(--space-8) var(--space-6);
+  background: radial-gradient(circle at center, rgba(16, 19, 35, 0.4) 0%, rgba(6, 7, 12, 0.6) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-xl);
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.6), var(--shadow-md);
+  margin: var(--space-4) auto;
+  max-width: 520px;
 }
 
 .boardLoading {
@@ -11,3 +18,4 @@
   pointer-events: none;
   cursor: wait;
 }
+

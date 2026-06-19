@@ -89,7 +89,8 @@ public class GameHubTests
         await hub.OnDisconnectedAsync(null);
 
         _mockService.Verify(
-            s => s.LeaveGameAsync(It.IsAny<Guid>(), It.IsAny<Guid>()),
+            s => s.LeaveGameAsync(It.IsAny<Guid>(), It.IsAny<Guid>(),
+                It.IsAny<Func<string, string, Task>?>(), It.IsAny<Func<GameStateView, Task>?>()),
             Times.Never);
     }
 
@@ -97,7 +98,8 @@ public class GameHubTests
     public async Task OnDisconnectedAsync_ActiveGame_CallsLeaveServiceAndBroadcastsGameEnded()
     {
         _mockService
-            .Setup(s => s.LeaveGameAsync(_sessionId, _userId))
+            .Setup(s => s.LeaveGameAsync(_sessionId, _userId,
+                It.IsAny<Func<string, string, Task>?>(), It.IsAny<Func<GameStateView, Task>?>()))
             .ReturnsAsync(GameResultEnvelope<LeaveResult>.Ok(new LeaveResult(true)));
 
         var hub = BuildHub();
@@ -105,7 +107,8 @@ public class GameHubTests
 
         await hub.OnDisconnectedAsync(null);
 
-        _mockService.Verify(s => s.LeaveGameAsync(_sessionId, _userId), Times.Once);
+        _mockService.Verify(s => s.LeaveGameAsync(_sessionId, _userId,
+            It.IsAny<Func<string, string, Task>?>(), It.IsAny<Func<GameStateView, Task>?>()), Times.Once);
         _mockGroupProxy.Verify(
             p => p.SendCoreAsync(
                 "GameEnded",
@@ -118,7 +121,8 @@ public class GameHubTests
     public async Task OnDisconnectedAsync_LobbyOrAlreadyEndedGame_CallsLeaveServiceButNoBroadcast()
     {
         _mockService
-            .Setup(s => s.LeaveGameAsync(_sessionId, _userId))
+            .Setup(s => s.LeaveGameAsync(_sessionId, _userId,
+                It.IsAny<Func<string, string, Task>?>(), It.IsAny<Func<GameStateView, Task>?>()))
             .ReturnsAsync(GameResultEnvelope<LeaveResult>.Ok(new LeaveResult(false)));
 
         var hub = BuildHub();
@@ -126,7 +130,8 @@ public class GameHubTests
 
         await hub.OnDisconnectedAsync(null);
 
-        _mockService.Verify(s => s.LeaveGameAsync(_sessionId, _userId), Times.Once);
+        _mockService.Verify(s => s.LeaveGameAsync(_sessionId, _userId,
+            It.IsAny<Func<string, string, Task>?>(), It.IsAny<Func<GameStateView, Task>?>()), Times.Once);
         _mockGroupProxy.Verify(
             p => p.SendCoreAsync("GameEnded", It.IsAny<object?[]>(), It.IsAny<CancellationToken>()),
             Times.Never);
@@ -142,7 +147,8 @@ public class GameHubTests
         await hub.OnDisconnectedAsync(null);
 
         _mockService.Verify(
-            s => s.LeaveGameAsync(It.IsAny<Guid>(), It.IsAny<Guid>()),
+            s => s.LeaveGameAsync(It.IsAny<Guid>(), It.IsAny<Guid>(),
+                It.IsAny<Func<string, string, Task>?>(), It.IsAny<Func<GameStateView, Task>?>()),
             Times.Never);
     }
 
@@ -150,7 +156,8 @@ public class GameHubTests
     public async Task OnDisconnectedAsync_GroupNameMatchesSession()
     {
         _mockService
-            .Setup(s => s.LeaveGameAsync(_sessionId, _userId))
+            .Setup(s => s.LeaveGameAsync(_sessionId, _userId,
+                It.IsAny<Func<string, string, Task>?>(), It.IsAny<Func<GameStateView, Task>?>()))
             .ReturnsAsync(GameResultEnvelope<LeaveResult>.Ok(new LeaveResult(true)));
 
         var hub = BuildHub();

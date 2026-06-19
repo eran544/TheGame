@@ -3,109 +3,121 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background-color: var(--color-card);
-  border: 2px solid var(--color-border);
+  background: radial-gradient(circle at center, #1b1d32 0%, #101120 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--radius-md);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35), inset 0 0 0 2px rgba(255, 255, 255, 0.03);
   cursor: pointer;
   user-select: none;
   font-family: var(--font-family-display);
-  font-weight: var(--font-weight-bold);
+  font-weight: 800;
   color: var(--color-text);
   transition:
-    transform var(--transition-base),
+    transform var(--transition-slow),
     border-color var(--transition-base),
-    box-shadow var(--transition-base),
-    background-color var(--transition-base);
+    box-shadow var(--transition-slow),
+    background var(--transition-base);
   position: relative;
   overflow: hidden;
 }
 
 .card:hover {
-  border-color: var(--color-text-secondary);
-  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.35);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5), inset 0 0 0 2px rgba(255, 255, 255, 0.05);
 }
 
 /* ---------- Sizes ---------- */
 .sm {
-  width: 44px;
-  height: 60px;
+  width: 46px;
+  height: 64px;
   font-size: var(--font-size-base);
   border-radius: var(--radius-sm);
 }
 
 .md {
-  width: 60px;
-  height: 84px;
+  width: 64px;
+  height: 90px;
   font-size: var(--font-size-xl);
 }
 
 .lg {
-  width: 80px;
-  height: 112px;
+  width: 84px;
+  height: 118px;
   font-size: var(--font-size-2xl);
 }
 
 /* ---------- States ---------- */
 .selected {
   border-color: var(--color-accent);
-  background-color: var(--color-accent-muted);
-  box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.3), var(--shadow-md);
-  transform: translateY(-4px);
+  background: radial-gradient(circle at center, #2e1220 0%, #1a0a14 100%);
+  box-shadow: 0 0 25px rgba(255, 61, 96, 0.5), inset 0 0 0 2px rgba(255, 61, 96, 0.15);
+  transform: translateY(-10px) scale(1.03);
+  animation: cardFloat 3s infinite ease-in-out;
+}
+
+.selected:hover {
+  transform: translateY(-12px) scale(1.03);
+  box-shadow: 0 0 30px rgba(255, 61, 96, 0.65), inset 0 0 0 2px rgba(255, 61, 96, 0.15);
 }
 
 .playable {
-  border-color: var(--color-pile-asc);
+  border-color: rgba(0, 230, 118, 0.5);
 }
 
 .playable:hover {
   border-color: var(--color-pile-asc);
-  box-shadow: 0 0 10px rgba(46, 204, 113, 0.3);
+  box-shadow: 0 0 15px rgba(0, 230, 118, 0.4), inset 0 0 0 2px rgba(0, 230, 118, 0.1);
 }
 
 .notPlayable {
-  opacity: 0.45;
+  opacity: 0.3;
   cursor: default;
 }
 
 .notPlayable:hover {
   transform: none;
-  border-color: var(--color-border);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
 }
 
 /* ---------- Backwards trick indicator ---------- */
 .backwardsIndicator {
   position: absolute;
-  top: 4px;
-  right: 4px;
+  top: 6px;
+  right: 6px;
   width: 8px;
   height: 8px;
   background-color: var(--color-warning);
   border-radius: 50%;
+  box-shadow: 0 0 8px var(--color-warning);
 }
 
 /* ---------- Value display ---------- */
 .value {
   line-height: 1;
   pointer-events: none;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
 }
 
 /* Corner pips */
 .cornerTL,
 .cornerBR {
   position: absolute;
-  font-size: 0.6em;
-  font-weight: var(--font-weight-bold);
+  font-size: 0.5em;
+  font-weight: 800;
   line-height: 1;
   color: var(--color-text-secondary);
 }
 
 .cornerTL {
-  top: 4px;
-  left: 6px;
+  top: 6px;
+  left: 8px;
 }
 
 .cornerBR {
-  bottom: 4px;
-  right: 6px;
+  bottom: 6px;
+  right: 8px;
   transform: rotate(180deg);
 }
+

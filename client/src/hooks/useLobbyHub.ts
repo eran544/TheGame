@@ -6,7 +6,7 @@ import { applyGameStateFromHub } from '../store/slices/gameSlice';
 import type { LobbyStateDto } from '../types/game';
 import type { GameStateDto } from '../store/slices/gameSlice';
 
-const BASE_URL = import.meta.env.REACT_APP_API_BASE_URL ?? 'http://localhost:5001';
+import { THEGAME_URL as BASE_URL } from '../api/config';
 
 export function useLobbyHub(
   sessionId: string | null,

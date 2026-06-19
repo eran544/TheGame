@@ -1,0 +1,679 @@
+/* ============================================================
+   FLIP 7 — Board (scoreboard, lines, controls, feed)
+   Cyber-neon theme; tokens defined in index.css
+   ============================================================ */
+
+.gameContainer {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/* ---------- Scoreboard ---------- */
+.scoreboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.scoreCard {
+  background: var(--neon-surface);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--neon-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  transition: all var(--transition-slow);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.activeScoreCard {
+  border-color: var(--neon-accent-cyan);
+  box-shadow: var(--neon-glow-cyan);
+  animation: neonPulseCyan 2s infinite ease-in-out;
+}
+
+.bustedScoreCard {
+  border-color: var(--neon-accent-pink);
+  opacity: 0.6;
+  background: rgba(255, 0, 127, 0.04);
+}
+
+.stayedScoreCard {
+  border-color: rgba(255, 255, 0, 0.2);
+  opacity: 0.75;
+}
+
+.scoreHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.playerName {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--neon-text);
+  letter-spacing: 0.05em;
+}
+
+.aiTag {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--neon-accent-purple);
+  background: rgba(139, 0, 255, 0.12);
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-sm);
+  text-transform: capitalize;
+  letter-spacing: 0.03em;
+}
+
+.dealerTag {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--neon-accent-yellow);
+  background: rgba(255, 255, 0, 0.08);
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.scoreValues {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.scoreGroup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  flex: 1;
+}
+
+.scoreLabel {
+  font-size: var(--font-size-xs);
+  color: var(--neon-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.scoreVal {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xl);
+  font-weight: 900;
+  color: var(--neon-accent-cyan);
+  text-shadow: 0 0 8px rgba(0, 255, 255, 0.4);
+  animation: scorePop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.roundVal {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--neon-accent-yellow);
+  text-shadow: 0 0 6px rgba(255, 255, 0, 0.4);
+  animation: scorePop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes scorePop {
+  0% { transform: scale(1.6); filter: brightness(2); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+.playerStatusText {
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--neon-text-secondary);
+  min-height: 1rem;
+}
+
+/* ---------- Playboard / Card Lines ---------- */
+.playboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  background: rgba(7, 2, 13, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6) var(--space-5);
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.6);
+}
+
+.playerBoardRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* The line whose owner is choosing an action-card target — glow so the player
+   can read their own cards while the picker sheet sits below. */
+.pickingRow {
+  padding: var(--space-2);
+  margin: calc(-1 * var(--space-2));
+  border-radius: var(--radius-md);
+  background: rgba(139, 0, 255, 0.06);
+  animation: pickGlow 1.6s ease-in-out infinite;
+}
+
+@keyframes pickGlow {
+  0%, 100% { box-shadow: inset 0 0 0 1px rgba(139, 0, 255, 0.35), 0 0 14px rgba(139, 0, 255, 0.2); }
+  50% { box-shadow: inset 0 0 0 1px rgba(139, 0, 255, 0.6), 0 0 26px rgba(139, 0, 255, 0.4); }
+}
+
+.rowLabel {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--neon-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.cardLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  min-height: 56px;
+}
+
+.waitingText {
+  font-size: var(--font-size-xs);
+  color: var(--neon-text-secondary);
+  font-style: italic;
+  opacity: 0.6;
+}
+
+/* ---------- Cards ---------- */
+.numCard,
+.shieldCard,
+.modifierCard,
+.freezeCard,
+.bustCard {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 68px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-family-mono);
+  font-weight: 700;
+  position: relative;
+  user-select: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: default;
+  animation: cardDealIn 0.3s ease;
+}
+
+.numCard:hover,
+.shieldCard:hover,
+.modifierCard:hover,
+.freezeCard:hover,
+.bustCard:hover {
+  transform: translateY(-3px);
+}
+
+.numCard {
+  background: linear-gradient(145deg, #1a1035 0%, #0d0820 100%);
+  border: 1px solid rgba(0, 255, 255, 0.25);
+  color: var(--neon-accent-cyan);
+  box-shadow: 0 2px 8px rgba(0, 255, 255, 0.15);
+}
+
+.numCard:hover {
+  box-shadow: 0 4px 14px rgba(0, 255, 255, 0.3);
+}
+
+.shieldCard {
+  background: linear-gradient(145deg, #1a1a08 0%, #101005 100%);
+  border: 1px solid rgba(255, 238, 0, 0.3);
+  color: var(--neon-accent-yellow);
+  box-shadow: 0 2px 8px rgba(255, 238, 0, 0.12);
+}
+
+.shieldCard:hover {
+  box-shadow: 0 4px 14px rgba(255, 238, 0, 0.25);
+}
+
+.modifierCard {
+  background: linear-gradient(145deg, #2a0a1e 0%, #180510 100%);
+  border: 1px solid rgba(255, 0, 127, 0.3);
+  color: var(--neon-accent-pink);
+  box-shadow: 0 2px 8px rgba(255, 0, 127, 0.12);
+}
+
+.modifierCard:hover {
+  box-shadow: 0 4px 14px rgba(255, 0, 127, 0.3);
+}
+
+/* Frozen marker — icy blue, kept next to the player for the rest of the round. */
+.freezeCard {
+  background: linear-gradient(145deg, #07223a 0%, #04111f 100%);
+  border: 1px solid rgba(100, 180, 255, 0.5);
+  color: #8fd0ff;
+  box-shadow: 0 2px 10px rgba(100, 180, 255, 0.25);
+}
+
+.freezeCard:hover {
+  box-shadow: 0 4px 16px rgba(100, 180, 255, 0.4);
+}
+
+/* The duplicate that busted the player — pure red so it never reads as a (pink) modifier. */
+.bustCard {
+  background: linear-gradient(145deg, #3a0707 0%, #200404 100%);
+  border: 1.5px solid #ff2d2d;
+  color: #ff5a5a;
+  box-shadow: 0 2px 12px rgba(255, 45, 45, 0.4);
+}
+
+.bustCard .mainValue {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+}
+
+.mainValue {
+  font-size: var(--font-size-md);
+  line-height: 1;
+  text-shadow: 0 0 6px currentColor;
+}
+
+.cornerPip {
+  position: absolute;
+  top: 3px;
+  left: 5px;
+  font-size: 0.5rem;
+  opacity: 0.6;
+  line-height: 1;
+}
+
+@keyframes cardDealIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) rotateY(70deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotateY(0);
+  }
+}
+
+/* ---------- Interaction Area ---------- */
+.interactionArea {
+  display: flex;
+  gap: var(--space-6);
+  width: 100%;
+}
+
+@media (max-width: 700px) {
+  .interactionArea {
+    flex-direction: column;
+  }
+}
+
+.logPanel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.logPanel h3 {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--neon-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.logList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-4);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-md);
+  scrollbar-color: rgba(0, 255, 255, 0.2) transparent;
+  scrollbar-width: thin;
+}
+
+.logItem {
+  font-size: var(--font-size-xs);
+  color: var(--neon-text-secondary);
+  line-height: 1.5;
+  padding: 0.15rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.logItem:last-child {
+  border-bottom: none;
+}
+
+/* ---------- Controls ---------- */
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  align-items: center;
+  justify-content: center;
+  min-width: 160px;
+}
+
+.actionBtn {
+  font-family: var(--font-family-mono);
+  font-weight: 900;
+  font-size: var(--font-size-lg);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: var(--space-4) var(--space-8);
+  border-radius: var(--radius-lg);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  width: 100%;
+  min-width: 140px;
+  text-align: center;
+}
+
+.actionBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  filter: grayscale(0.8);
+}
+
+.hitBtn {
+  background: rgba(0, 255, 255, 0.08);
+  border-color: var(--neon-accent-cyan);
+  color: var(--neon-accent-cyan);
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.6);
+  box-shadow: 0 0 15px rgba(0, 255, 255, 0.2), inset 0 0 10px rgba(0, 255, 255, 0.05);
+}
+
+.hitBtn:not(:disabled):hover {
+  background: rgba(0, 255, 255, 0.15);
+  box-shadow: 0 0 30px rgba(0, 255, 255, 0.5), inset 0 0 15px rgba(0, 255, 255, 0.1);
+  transform: scale(1.05);
+}
+
+.hitBtn:not(:disabled):active {
+  transform: scale(0.97);
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+}
+
+.stayBtn {
+  background: rgba(255, 0, 127, 0.08);
+  border-color: var(--neon-accent-pink);
+  color: var(--neon-accent-pink);
+  text-shadow: 0 0 10px rgba(255, 0, 127, 0.6);
+  box-shadow: 0 0 15px rgba(255, 0, 127, 0.2), inset 0 0 10px rgba(255, 0, 127, 0.05);
+}
+
+.stayBtn:not(:disabled):hover {
+  background: rgba(255, 0, 127, 0.15);
+  box-shadow: 0 0 30px rgba(255, 0, 127, 0.5), inset 0 0 15px rgba(255, 0, 127, 0.1);
+  transform: scale(1.05);
+}
+
+.stayBtn:not(:disabled):active {
+  transform: scale(0.97);
+  box-shadow: 0 0 10px rgba(255, 0, 127, 0.3);
+}
+
+.turnHint {
+  font-size: var(--font-size-xs);
+  color: var(--neon-text-secondary);
+  text-align: center;
+}
+
+.turnHint strong {
+  color: var(--neon-accent-cyan);
+}
+
+/* ---------- Round / Game-over Controls ---------- */
+.roundControls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  align-items: center;
+  justify-content: center;
+  min-width: 200px;
+}
+
+.roundSummaryAlert {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--neon-accent-yellow);
+  text-align: center;
+  padding: var(--space-3) var(--space-4);
+  background: rgba(255, 238, 0, 0.05);
+  border: 1px solid rgba(255, 238, 0, 0.15);
+  border-radius: var(--radius-md);
+  text-shadow: 0 0 5px rgba(255, 238, 0, 0.3);
+}
+
+.finalRanking {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  min-width: 200px;
+}
+
+.rankRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  color: var(--neon-text);
+  padding: var(--space-1) var(--space-3);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--radius-sm);
+}
+
+.rankRow:first-child {
+  color: var(--neon-accent-yellow);
+  text-shadow: 0 0 6px rgba(255, 238, 0, 0.4);
+}
+
+/* ---------- Announcement Overlays ---------- */
+.announceOverlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  pointer-events: none;
+  z-index: 600;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(3px);
+  animation: announceIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), announceOut 0.4s ease 1.4s forwards;
+}
+
+.announceText {
+  font-family: var(--font-family-mono);
+  font-size: clamp(2.5rem, 8vw, 5rem);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.announceSub {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-lg);
+  color: var(--neon-text-secondary);
+  letter-spacing: 0.08em;
+}
+
+.announceFlip7 .announceText {
+  color: var(--neon-accent-yellow);
+  text-shadow: 0 0 30px rgba(255, 238, 0, 0.8), 0 0 90px rgba(255, 238, 0, 0.4);
+}
+
+.announceBust .announceText {
+  color: var(--neon-accent-pink);
+  text-shadow: 0 0 30px rgba(255, 0, 127, 0.8), 0 0 90px rgba(255, 0, 127, 0.4);
+}
+
+.announceFrozen .announceText {
+  color: #64b4ff;
+  text-shadow: 0 0 30px rgba(100, 180, 255, 0.8), 0 0 90px rgba(100, 180, 255, 0.4);
+}
+
+@keyframes announceIn {
+  from { opacity: 0; transform: scale(1.25); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes announceOut {
+  to { opacity: 0; }
+}
+
+/* ---------- Action-card Target Picker ----------
+   Docked to the bottom as a sheet (not a full-screen modal) and without a
+   backdrop blur, so the player can still see every line — including their own
+   deck — above it while deciding who to target. */
+.pickerOverlay {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: auto;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 650;
+  padding: var(--space-4);
+  pointer-events: none; /* board behind stays visible; only the sheet takes input */
+  background: linear-gradient(to top, rgba(3, 0, 8, 0.94), rgba(3, 0, 8, 0.5) 55%, rgba(3, 0, 8, 0));
+  animation: sheetFade 0.3s ease;
+}
+
+@keyframes sheetFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.pickerCard {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 460px;
+  background: var(--neon-surface-2);
+  border: 2px solid var(--neon-accent-purple);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: center;
+  box-shadow: 0 0 50px rgba(139, 0, 255, 0.4), 0 20px 60px rgba(0, 0, 0, 0.6);
+  animation: sheetUp 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes sheetUp {
+  from { opacity: 0; transform: translateY(40px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.pickerCardArt {
+  font-size: 3rem;
+  line-height: 1;
+  filter: drop-shadow(0 0 12px rgba(139, 0, 255, 0.6));
+}
+
+.pickerTitle {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xl);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: var(--neon-accent-purple);
+  text-shadow: 0 0 14px rgba(139, 0, 255, 0.5);
+}
+
+.pickerSub {
+  font-size: var(--font-size-sm);
+  color: var(--neon-text-secondary);
+  line-height: 1.5;
+}
+
+.pickerPlayers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  margin-top: var(--space-2);
+}
+
+.pickerPlayer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--neon-border);
+  background: rgba(255, 255, 255, 0.02);
+  font-family: var(--font-family-mono);
+  transition: all var(--transition-base);
+}
+
+.pickerSelectable {
+  cursor: pointer;
+  border-color: rgba(0, 255, 255, 0.3);
+  color: var(--neon-text);
+}
+
+.pickerSelectable:hover {
+  border-color: var(--neon-accent-cyan);
+  background: rgba(0, 255, 255, 0.08);
+  box-shadow: var(--neon-glow-cyan);
+  transform: translateY(-2px);
+}
+
+.pickerDisabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  filter: grayscale(0.7);
+  color: var(--neon-text-secondary);
+}
+
+.pickerSelf.pickerSelectable {
+  border-color: rgba(255, 238, 0, 0.4);
+}
+
+.pickerSelf.pickerSelectable:hover {
+  border-color: var(--neon-accent-yellow);
+  background: rgba(255, 238, 0, 0.08);
+  box-shadow: 0 0 15px rgba(255, 238, 0, 0.35);
+}
+
+.pickerPlayerName {
+  font-weight: 700;
+  font-size: var(--font-size-sm);
+}
+
+.pickerPlayerMeta {
+  font-size: var(--font-size-xs);
+  color: var(--neon-text-secondary);
+  text-transform: capitalize;
+}

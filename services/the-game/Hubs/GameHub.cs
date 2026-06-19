@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using TheGameServer.Mappers;
 using TheGameServer.Services.Game;
 
 namespace TheGameServer.Hubs;
@@ -11,6 +12,9 @@ public class GameHub : Hub
 {
     // Maps connectionId → (sessionId, userId) so OnDisconnectedAsync can clean up.
     private static readonly ConcurrentDictionary<string, (Guid SessionId, Guid UserId)> _connections = new();
+
+    // Delay between streamed AI catch-up turns so a takeover reads like real turns.
+    private const int TurnBeatDelayMs = 800;
 
     private readonly IGameService _gameService;
 
@@ -37,28 +41,39 @@ public class GameHub : Hub
     {
         if (_connections.TryRemove(Context.ConnectionId, out var info))
         {
-            var result = await _gameService.LeaveGameAsync(info.SessionId, info.UserId);
-            if (!result.Success) { await base.OnDisconnectedAsync(exception); return; }
-
-            var leave = result.Value!;
             var group = Clients.Group(GroupName(info.SessionId.ToString()));
 
-            if (leave.ReplacedByAIUsername is not null)
+            // Announce the AI takeover, then stream each of the AI's catch-up turns,
+            // paced like real turns, so the remaining players watch play unfold in order.
+            // This awaits inside OnDisconnectedAsync (whose scope and Clients stay valid
+            // for the duration); the beats broadcast to the group, not the gone caller.
+            var beats = 0;
+            Func<string, string, Task> onReplaced = (disconnected, ai) =>
+                group.SendAsync("PlayerReplacedByAI", new { disconnectedUsername = disconnected, aiUsername = ai });
+            Func<GameStateView, Task> onTurn = async view =>
             {
-                await group.SendAsync("PlayerReplacedByAI", new
-                {
-                    disconnectedUsername = leave.DisconnectedUsername,
-                    aiUsername = leave.ReplacedByAIUsername
-                });
+                if (beats++ > 0) await Task.Delay(TurnBeatDelayMs);
+                await group.SendAsync("GameStateUpdated", GameViewMapper.ToDto(view));
+            };
 
-                if (leave.GameEnded)
-                    await group.SendAsync("GameEnded", leave.StateAfterReplacement ?? (object)new { reason = "completed" });
-                else if (leave.StateAfterReplacement is not null)
-                    await group.SendAsync("GameStateUpdated", leave.StateAfterReplacement);
-            }
-            else if (leave.GameEnded)
+            var result = await _gameService.LeaveGameAsync(info.SessionId, info.UserId, onReplaced, onTurn);
+            if (result.Success)
             {
-                await group.SendAsync("GameEnded", new { reason = "disconnection" });
+                var leave = result.Value!;
+                if (leave.ReplacedByAIUsername is not null)
+                {
+                    // Authoritative final state after the streamed beats (settles whose
+                    // turn is next). Harmless duplicate of the last beat when one streamed.
+                    if (leave.GameEnded)
+                        await group.SendAsync("GameEnded", leave.StateAfterReplacement is not null
+                            ? GameViewMapper.ToDto(leave.StateAfterReplacement) : (object)new { reason = "completed" });
+                    else if (leave.StateAfterReplacement is not null)
+                        await group.SendAsync("GameStateUpdated", GameViewMapper.ToDto(leave.StateAfterReplacement));
+                }
+                else if (leave.GameEnded)
+                {
+                    await group.SendAsync("GameEnded", new { reason = "disconnection" });
+                }
             }
         }
         await base.OnDisconnectedAsync(exception);

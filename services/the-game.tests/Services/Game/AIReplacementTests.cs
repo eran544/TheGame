@@ -324,6 +324,92 @@ public class AIReplacementTests : IDisposable
         alice.ReplacedByAI.Should().BeFalse();
     }
 
+    // ── Per-turn streaming (watch each player's turn unfold) ──────────────────
+
+    [Fact]
+    public async Task PlayTurn_StreamsTheHumanMoveThenEachAiTurn_ViaCallback()
+    {
+        SeedAIUsers();
+        _shuffler.SetDeck(CardDeck.CreateOrderedDeck());
+        var lobby = (await _sut.CreateMultiplayerGameAsync(_aliceId, maxPlayers: 2)).Value!;
+        await _sut.AddAIPlayerAsync(lobby.SessionId, _aliceId);
+        await _sut.StartMultiplayerGameAsync(lobby.SessionId, _aliceId);
+
+        var beats = new List<GameStateView>();
+        var result = await _sut.PlayTurnAsync(lobby.SessionId, _aliceId, new List<CardPlay>
+        {
+            new(2, PileSlot.Ascending1),
+            new(3, PileSlot.Ascending1),
+        }, view => { beats.Add(view); return Task.CompletedTask; });
+
+        result.Success.Should().BeTrue();
+
+        // More than one beat means the AI's turn streamed separately from the human's.
+        beats.Should().HaveCountGreaterThan(1);
+
+        // First beat is the human's own move only.
+        beats[0].RecentMoves!.Should().ContainSingle()
+            .Which.PlayerUsername.Should().Be("alice");
+
+        // A later beat accumulates the moves so far and includes an AI's turn.
+        var last = beats[^1];
+        last.RecentMoves!.Count.Should().BeGreaterThan(1);
+        last.RecentMoves!.Should().Contain(m => m.PlayerUsername == "alice");
+        last.RecentMoves!.Should().Contain(m => m.PlayerUsername != "alice");
+    }
+
+    [Fact]
+    public async Task PlayTurn_WithoutCallback_StillResolvesAiTurnsInOneShot()
+    {
+        SeedAIUsers();
+        _shuffler.SetDeck(CardDeck.CreateOrderedDeck());
+        var lobby = (await _sut.CreateMultiplayerGameAsync(_aliceId, maxPlayers: 2)).Value!;
+        await _sut.AddAIPlayerAsync(lobby.SessionId, _aliceId);
+        await _sut.StartMultiplayerGameAsync(lobby.SessionId, _aliceId);
+
+        // No onTurn callback → unchanged batch behaviour: the final view still
+        // carries every recent move (the human's plus each AI's).
+        var result = await _sut.PlayTurnAsync(lobby.SessionId, _aliceId, new List<CardPlay>
+        {
+            new(2, PileSlot.Ascending1),
+            new(3, PileSlot.Ascending1),
+        });
+
+        result.Success.Should().BeTrue();
+        result.Value!.State.RecentMoves!.Should().Contain(m => m.PlayerUsername == "alice");
+        result.Value!.State.RecentMoves!.Should().Contain(m => m.PlayerUsername != "alice");
+    }
+
+    [Fact]
+    public async Task LeaveGame_StreamsTheReplacementAnnouncementThenEachAiTurn_ViaCallbacks()
+    {
+        SeedAIUsers();
+        var sessionId = await StartTwoPlayerGameAsync();
+
+        // Alice holds the opening turn (index 0); when she drops, her AI replacement
+        // takes over and plays a turn before handing off to Bob.
+        var order = new List<string>();
+        var beats = new List<GameStateView>();
+        string? aiName = null;
+
+        var result = await _sut.LeaveGameAsync(
+            sessionId, _aliceId,
+            onReplaced: (disconnected, ai) => { aiName = ai; order.Add($"replaced:{disconnected}"); return Task.CompletedTask; },
+            onTurn: view => { order.Add("turn"); beats.Add(view); return Task.CompletedTask; });
+
+        result.Success.Should().BeTrue();
+
+        // The swap is announced exactly once, before any AI turn streams.
+        order.Should().NotBeEmpty();
+        order[0].Should().Be("replaced:alice");
+        order.Count(e => e.StartsWith("replaced:")).Should().Be(1);
+
+        // At least one AI turn streamed as its own beat, carrying the AI's move.
+        order.Should().Contain("turn");
+        aiName.Should().NotBeNullOrEmpty();
+        beats[^1].RecentMoves!.Should().Contain(m => m.PlayerUsername == aiName);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private void SeedAIUsers()

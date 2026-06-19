@@ -11,8 +11,16 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import config
 from pydantic import BaseModel
-from game_models import AIMoveRequest, AIMoveResponse, AIMessageRequest, AIMessageResponse
+from game_models import (
+    AIMoveRequest,
+    AIMoveResponse,
+    AIMessageRequest,
+    AIMessageResponse,
+    Flip7AIMoveRequest,
+    Flip7AIMoveResponse,
+)
 from ai_player import get_ai_move, get_ai_message
+from flip7_ai import get_flip7_move
 from message_validator import validate_message as _validate_chat
 
 logging.basicConfig(
@@ -86,9 +94,13 @@ async def generate_ai_message(request: AIMessageRequest) -> AIMessageResponse:
     return await get_ai_message(request)
 
 
-# ── Flip 7 endpoints (Phase 2) ────────────────────────────────────────────────
-# Reserved namespace: /flip7/ai-move, /flip7/ai-message, etc. will be added when
-# the Flip 7 game is implemented, reusing the same difficulty/style infrastructure.
+# ── Flip 7 endpoints ──────────────────────────────────────────────────────────
+# Press-your-luck Hit/Stay decisions, reusing the shared difficulty/style knobs.
+
+@app.post("/flip7/ai-move", response_model=Flip7AIMoveResponse)
+async def flip7_ai_move(request: Flip7AIMoveRequest) -> Flip7AIMoveResponse:
+    """Return an AI player's Hit/Stay decision for the given Flip 7 state."""
+    return await get_flip7_move(request)
 
 
 if __name__ == "__main__":

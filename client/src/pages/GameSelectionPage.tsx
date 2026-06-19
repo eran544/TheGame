@@ -53,9 +53,15 @@ const GameSelectionPage: React.FC = () => {
             <button
               key={game.key}
               type="button"
-              className={styles.card}
+              className={[
+                styles.card,
+                game.key === 'the-game' ? styles.theGameCard : styles.flip7Card
+              ].join(' ')}
               onClick={() => navigate(game.route)}
             >
+              <div className={styles.badge}>
+                {game.key === 'the-game' ? 'Cooperative' : 'Press Your Luck'}
+              </div>
               <span className={styles.cardTitle}>{game.title}</span>
               <span className={styles.cardTagline}>{game.tagline}</span>
             </button>

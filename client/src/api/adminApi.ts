@@ -38,7 +38,7 @@ export interface CreateUserRequest {
   isAdmin: boolean;
 }
 
-const baseUrl = import.meta.env.REACT_APP_API_BASE_URL ?? 'http://localhost:5001';
+import { THEGAME_URL as baseUrl } from './config';
 
 async function del<T>(path: string, token: string): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, {

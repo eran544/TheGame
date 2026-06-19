@@ -1,0 +1,222 @@
+/* ============================================================
+   FLIP 7 — Game page shell (header, lobby, effects)
+   Board styles live in components/flip7/Flip7Board.module.css
+   ============================================================ */
+
+/* ---------- Page Shell ---------- */
+.page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-4);
+  max-width: 1000px;
+  margin: 0 auto;
+  min-height: calc(100vh - var(--header-height));
+  background: var(--neon-bg);
+  position: relative;
+}
+
+/* Floating neon ambience */
+.orbCyan,
+.orbPink {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(120px);
+  z-index: -1;
+  opacity: 0.12;
+  pointer-events: none;
+}
+
+.orbCyan {
+  width: 420px;
+  height: 420px;
+  background: var(--neon-accent-cyan);
+  top: -120px;
+  left: -120px;
+  animation: orbDrift 22s infinite alternate ease-in-out;
+}
+
+.orbPink {
+  width: 360px;
+  height: 360px;
+  background: var(--neon-accent-pink);
+  bottom: -100px;
+  right: -100px;
+  animation: orbDrift 28s infinite alternate-reverse ease-in-out;
+}
+
+@keyframes orbDrift {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(80px, 60px) scale(1.15); }
+}
+
+/* Screen effects */
+.effectBust {
+  animation: bustFlash 0.4s ease-in-out 2;
+}
+
+.effectWin {
+  animation: winFlash 0.5s ease-in-out 2;
+}
+
+.effectShake {
+  animation: screenShake 0.35s ease-in-out;
+}
+
+/* ---------- Header Area ---------- */
+.headerArea {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: var(--space-4);
+}
+
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.title {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-3xl);
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--neon-text);
+  line-height: 1.1;
+  text-shadow: 0 0 18px rgba(0, 255, 255, 0.5);
+}
+
+.title span {
+  color: var(--neon-accent-cyan);
+  text-shadow: 0 0 25px rgba(0, 255, 255, 0.8), 0 0 60px rgba(0, 255, 255, 0.3);
+}
+
+.tagline {
+  font-size: var(--font-size-xs);
+  color: var(--neon-text-secondary);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.roundTracker {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--neon-accent-yellow);
+  padding: 0.3rem 0.8rem;
+  border: 1px solid rgba(255, 255, 0, 0.25);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 0, 0.06);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 6px rgba(255, 255, 0, 0.5);
+  white-space: nowrap;
+}
+
+/* ---------- Status / Errors ---------- */
+.errorBanner {
+  width: 100%;
+  text-align: center;
+  color: var(--neon-accent-pink);
+  font-size: var(--font-size-sm);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(255, 0, 127, 0.06);
+  border: 1px solid rgba(255, 0, 127, 0.25);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.loadingText {
+  color: var(--neon-text-secondary);
+  font-family: var(--font-family-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: var(--font-size-sm);
+  padding: var(--space-10) 0;
+}
+
+/* ---------- Lobby Card ---------- */
+.setupCard {
+  max-width: 560px;
+  width: 100%;
+  background: var(--neon-surface);
+  backdrop-filter: blur(16px) saturate(120%);
+  border: 1px solid var(--neon-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-10) var(--space-8);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  align-items: center;
+  text-align: center;
+}
+
+.setupCard h2 {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-2xl);
+  font-weight: 900;
+  color: var(--neon-accent-cyan);
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.4);
+  letter-spacing: 0.08em;
+}
+
+.setupCard p {
+  color: var(--neon-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+}
+
+.lobbyIdRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+}
+
+.lobbyId {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--neon-accent-cyan);
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--neon-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+.lobbyPlayers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.lobbyPlayerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: var(--neon-text);
+}
+
+.lobbyAiMeta {
+  font-size: var(--font-size-xs);
+  color: var(--neon-accent-purple);
+  text-transform: capitalize;
+}
+
+.lobbyHint {
+  font-style: italic;
+  opacity: 0.8;
+}

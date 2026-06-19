@@ -2,7 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using GameCommon.Auth;
 using Flip7Server.Data;
+using Flip7Server.Game;
 using Flip7Server.Hubs;
+using Flip7Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -35,6 +37,15 @@ builder.Services.AddDbContext<Flip7DbContext>(options =>
 builder.Services.AddPlatformAuth(builder.Configuration, "/flip7hub");
 builder.Services.AddAuthorization();
 
+builder.Services.AddSingleton<IFlip7DeckShuffler, Flip7DeckShuffler>();
+builder.Services.AddScoped<IFlip7GameService, Flip7GameService>();
+builder.Services.AddScoped<IFlip7AiClient, Flip7AiClient>();
+builder.Services.AddHttpClient("Flip7Ai", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["AIService:BaseUrl"] ?? "http://localhost:8000");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowClient", policy =>
@@ -47,6 +58,13 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// Apply migrations on startup so Flip7DB is created/updated automatically in dev.
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<Flip7DbContext>();
+    db.Database.Migrate();
+}
 
 if (app.Environment.IsDevelopment())
 {
