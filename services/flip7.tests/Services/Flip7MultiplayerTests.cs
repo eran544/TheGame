@@ -45,10 +45,10 @@ public class Flip7MultiplayerTests
         new[] { new Flip7AiSpec { Style = style, Difficulty = difficulty } };
 
     [Fact]
-    public async Task Create_vs_ai_deals_and_leaves_the_opening_ai_on_turn_for_the_hub_to_animate()
+    public async Task Create_vs_ai_defers_the_deal_for_the_hub_to_animate()
     {
-        // Dealer seat 0 → turn order [AI, human]. The AI is dealt but does NOT act
-        // at creation: opening turns are deferred so the hub can animate them.
+        // Dealer seat 0 → turn order [AI, human]. Nothing is dealt at creation: the
+        // deal AND the opening AI turns are deferred so the hub animates round 1 live.
         var h = new Harness("stay", N(4), N(5), N(6), N(7));
         var state = await h.Svc().CreateGameAsync(Flip7GameMode.VsAi, Human, "alice", OneAi(), null);
 
@@ -59,17 +59,20 @@ public class Flip7MultiplayerTests
         var ai = state.Players.Single(p => p.IsAi);
         ai.AiStyle.Should().Be("risky");
         ai.AiDifficulty.Should().Be("hard");
-        ai.Numbers.Should().Equal(4);          // dealt
-        ai.Status.Should().Be("Active");        // has NOT acted yet
-        state.CurrentPlayerId.Should().Be(ai.Id); // AI is first; hub drives it
+        ai.Numbers.Should().BeEmpty();             // not dealt yet
+        state.Players.Single(p => !p.IsAi).Numbers.Should().BeEmpty();
+        state.CurrentPlayerId.Should().BeNull();   // deal hasn't run, so no one is on turn
 
-        // Driving the opening AI (what the hub does on connect) plays it out: the
-        // stub "stay" banks and passes the turn to the human.
+        // Driving (what the hub does on connect) animates the deal — AI=4, human=5 —
+        // then the opening AI turn: the stub "stay" banks and passes to the human.
         Flip7GameStateDto? last = null;
         await h.Svc().DriveAiAsync(state.Id, s => { last = s; return Task.CompletedTask; });
 
         last.Should().NotBeNull();
-        last!.Players.Single(p => p.IsAi).Status.Should().Be("Stayed");
+        var drivenAi = last!.Players.Single(p => p.IsAi);
+        drivenAi.Numbers.Should().Equal(4);        // dealt during the drive
+        drivenAi.Status.Should().Be("Stayed");
+        last.Players.Single(p => !p.IsAi).Numbers.Should().Equal(5);
         last.CurrentPlayerId.Should().Be(last.Players.Single(p => !p.IsAi).Id);
     }
 
@@ -96,7 +99,7 @@ public class Flip7MultiplayerTests
         // chains 4,5,6,7,8 → 7 unique → Flip 7.
         var h = new Harness("hit", N(1), N(2), N(3), N(4), N(5), N(6), N(7), N(8));
         var created = await h.Svc().CreateGameAsync(Flip7GameMode.VsAi, Human, "alice", OneAi(), null);
-        created.Players.Single(p => p.IsAi).Numbers.Should().Equal(1); // dealt only, not acted
+        created.Players.Single(p => p.IsAi).Numbers.Should().BeEmpty(); // deal deferred to the drive
 
         Flip7GameStateDto? afterOpening = null;
         await h.Svc().DriveAiAsync(created.Id, s => { afterOpening = s; return Task.CompletedTask; });
@@ -136,6 +139,34 @@ public class Flip7MultiplayerTests
         updates.Last().RoundEnded.Should().BeTrue();
         final.RoundEnded.Should().BeTrue();
         final.Players.Single(p => p.IsAi).AchievedFlip7.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Vs_ai_deal_streams_as_beats_and_a_dealt_flip_three_can_bust_the_human_before_their_turn()
+    {
+        // Turn order [AI, human]. The AI's dealt card is a Flip Three; it auto-targets
+        // the human, who draws 12, 12 → bust — all during the (now animated) deal,
+        // before the human's first turn. This must stream as paced beats rather than
+        // be resolved at creation before anyone is watching.
+        var h = new Harness("stay", Act(ActionKind.FlipThree), N(12), N(12), N(5));
+        var created = await h.Svc().CreateGameAsync(Flip7GameMode.VsAi, Human, "alice", OneAi(), null);
+
+        // At creation nothing has happened yet — crucially the human is not already busted.
+        created.CurrentPlayerId.Should().BeNull();
+        var humanAtCreate = created.Players.Single(p => !p.IsAi);
+        humanAtCreate.Status.Should().Be("Active");
+        humanAtCreate.Numbers.Should().BeEmpty();
+
+        var updates = new List<Flip7GameStateDto>();
+        await h.Svc().DriveAiAsync(created.Id, s => { updates.Add(s); return Task.CompletedTask; });
+
+        updates.Should().HaveCountGreaterThan(1); // dealt and played out as separate beats
+        // The human busts on the very first beat — the deal — via the AI's Flip Three.
+        var human = updates[0].Players.Single(p => !p.IsAi);
+        human.Status.Should().Be("Busted");
+        human.BustedNumber.Should().Be(12);
+        updates[0].Events.Should().Contain(e => e.Type == "FlipThreeStarted");
+        updates[0].Events.Should().Contain(e => e.Type == "Busted" && e.Card == "12");
     }
 
     [Fact]

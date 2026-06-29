@@ -42,9 +42,10 @@ public interface IFlip7GameService
     Task<Flip7GameStateDto> NextRoundAsync(Guid gameId, Guid userId, AiStepCallback? onUpdate = null, CancellationToken ct = default);
 
     /// <summary>
-    /// Plays out the opening AI turns of an in-progress round when an AI is on turn,
-    /// emitting each via <paramref name="onUpdate"/>; a no-op otherwise. Lets the hub
-    /// animate a vs-AI game's first turns once a client is connected to watch.
+    /// Animates whatever an in-progress round owes that no human input gates — the
+    /// remaining initial-deal seats, then any opening AI turns — emitting each beat
+    /// via <paramref name="onUpdate"/>; a no-op once it is a human's turn. Lets the
+    /// hub play a vs-AI game's deal and first turns out live once a client connects.
     /// </summary>
     Task DriveAiAsync(Guid gameId, AiStepCallback onUpdate, CancellationToken ct = default);
 

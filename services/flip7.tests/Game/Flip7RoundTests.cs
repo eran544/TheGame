@@ -39,6 +39,46 @@ public class Flip7RoundTests
     }
 
     [Fact]
+    public void BeginDeal_then_DealNext_hands_out_one_seat_per_call()
+    {
+        var round = Two(N(3), N(4), N(9));
+        round.BeginDeal();
+        round.Dealing.Should().BeTrue();
+        round.CurrentPlayerId.Should().BeNull(); // no one is on turn mid-deal
+
+        round.DealNext();                 // A gets 3
+        round.Line(A).Numbers.Should().Equal(3);
+        round.Line(B).Numbers.Should().BeEmpty();
+        round.Dealing.Should().BeTrue();
+
+        round.DealNext();                 // B gets 4 — last seat, deal finishes
+        round.Line(B).Numbers.Should().Equal(4);
+        round.Dealing.Should().BeFalse();
+        round.CurrentPlayerId.Should().Be(A); // first active seat is on turn
+    }
+
+    [Fact]
+    public void DealNext_resolves_a_dealt_action_within_its_one_beat()
+    {
+        // A's dealt card is a Flip Three (self-target) that draws 12, 12 → bust:
+        // the reveal, the three draws, and the bust are all one animated beat.
+        var round = Two(Act(ActionKind.FlipThree), N(12), N(12), N(5));
+        TargetChooser self = (_, drawer, _) => drawer;
+        round.BeginDeal();
+
+        var beat = round.DealNext(self);  // A: Flip Three → 12, 12 (dup) → bust
+        round.Line(A).Status.Should().Be(PlayerLineStatus.Busted);
+        round.Line(A).BustedNumber.Should().Be(12);
+        beat.Should().Contain(e => e.Type == Flip7EventType.FlipThreeStarted);
+        beat.Should().Contain(e => e.Type == Flip7EventType.Busted && e.Card!.Number == 12);
+
+        round.DealNext(self);             // B still gets its dealt card; deal finishes
+        round.Line(B).Numbers.Should().Equal(5);
+        round.Dealing.Should().BeFalse();
+        round.CurrentPlayerId.Should().Be(B); // A busted out, B is first active
+    }
+
+    [Fact]
     public void Solo_hit_then_stay_banks_the_sum()
     {
         var round = Solo(N(3), N(5), N(8));

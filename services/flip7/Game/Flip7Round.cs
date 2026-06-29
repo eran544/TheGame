@@ -173,12 +173,45 @@ public sealed class Flip7Round
     /// </summary>
     public IReadOnlyList<Flip7Event> DealInitial(TargetChooser? chooser = null)
     {
+        BeginDeal();
+        var events = new List<Flip7Event>();
+        DealSeats(chooser ?? DefaultChooser, events, oneSeat: false);
+        return events;
+    }
+
+    /// <summary>True while the initial deal still has seats to hand a card to.</summary>
+    public bool Dealing => _dealCursor >= 0;
+
+    /// <summary>
+    /// Begins the initial deal without handing out any cards yet. Seats are then
+    /// dealt one at a time by <see cref="DealNext"/> (the animated path) instead of
+    /// all at once by <see cref="DealInitial"/>, so every player can watch a round be
+    /// dealt — including action cards that resolve on the deal.
+    /// </summary>
+    public void BeginDeal()
+    {
         if (_dealt) throw new InvalidOperationException("Initial deal already happened.");
         _dealt = true;
         _dealCursor = 0;
+    }
+
+    /// <summary>
+    /// Deals one card to the next still-active seat and resolves any action it
+    /// triggers, returning just that seat's events. Inactive seats (e.g. one frozen
+    /// by an earlier deal action) are skipped without consuming the beat. May suspend
+    /// on <see cref="PendingAction"/> when a human draws an action, exactly like
+    /// <see cref="DealInitial"/>. Call while <see cref="Dealing"/> is true; once the
+    /// last seat is dealt the deal finishes and the first turn is set.
+    /// </summary>
+    public IReadOnlyList<Flip7Event> DealNext(TargetChooser? chooser = null)
+    {
+        if (!Dealing)
+            throw new InvalidOperationException("No initial deal is in progress.");
+        if (PendingAction is not null)
+            throw new InvalidOperationException("Resolve the pending action before dealing on.");
 
         var events = new List<Flip7Event>();
-        ContinueDeal(chooser ?? DefaultChooser, events);
+        DealSeats(chooser ?? DefaultChooser, events, oneSeat: true);
         return events;
     }
 
@@ -249,7 +282,7 @@ public sealed class Flip7Round
         {
             if (_dealCursor >= 0)
             {
-                ContinueDeal(pick, events);
+                DealSeats(pick, events, oneSeat: false);
             }
             else if (_advanceTurnAfterResolve)
             {
@@ -263,8 +296,13 @@ public sealed class Flip7Round
 
     // ---- Resolution internals -------------------------------------------
 
-    /// <summary>Deals to the seats from the paused cursor onward; suspends on a target choice.</summary>
-    private void ContinueDeal(TargetChooser chooser, List<Flip7Event> events)
+    /// <summary>
+    /// Deals from the paused cursor onward. With <paramref name="oneSeat"/> it stops
+    /// after a single active seat (the animated, one-beat-per-seat path); otherwise it
+    /// deals every remaining seat in one go. Either way it suspends early on a target
+    /// choice, and finishes the deal (setting the first turn) once the last seat is dealt.
+    /// </summary>
+    private void DealSeats(TargetChooser chooser, List<Flip7Event> events, bool oneSeat)
     {
         while (_dealCursor >= 0 && _dealCursor < _turnOrder.Count && !RoundEnded)
         {
@@ -276,11 +314,16 @@ public sealed class Flip7Round
             PumpActions(chooser, events);
             CheckRoundEnd(events);
             if (PendingAction is not null) return; // resume from the cursor later
+
+            if (oneSeat) break; // dealt exactly one active seat this beat
         }
 
-        _dealCursor = -1;
-        if (!RoundEnded)
-            _currentIndex = FirstActiveIndex();
+        if (RoundEnded || _dealCursor >= _turnOrder.Count)
+        {
+            _dealCursor = -1;
+            if (!RoundEnded)
+                _currentIndex = FirstActiveIndex();
+        }
     }
 
     private void ResolveDraw(PlayerLine recipient, List<Flip7Event> events, List<ActionKind>? deferred)
