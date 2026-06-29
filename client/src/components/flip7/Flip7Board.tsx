@@ -253,6 +253,9 @@ const Flip7Board: React.FC<Flip7BoardProps> = ({
                 Waiting for <strong>{current.username}</strong>…
               </div>
             )}
+            {!pending && !current && (
+              <div className={styles.turnHint}>Dealing the round…</div>
+            )}
           </div>
         )}
 

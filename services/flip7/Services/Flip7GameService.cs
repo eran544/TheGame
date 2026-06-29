@@ -104,14 +104,15 @@ public class Flip7GameService : IFlip7GameService
             if (!session.Players.Any(p => p.IsAi))
                 throw new InvalidOperationException("A vs-AI game needs at least one AI opponent.");
             session.Status = Flip7GameStatus.InProgress;
-            var events = new List<Flip7Event>();
-            var round = StartRound(session, events);
-            // Deal only — the opening AI turns are animated by the hub when the
-            // creator's client connects (DriveAiAsync), so round 1 plays out live too.
-            SettleDeal(session, round);
+            // Begin the round but deal nothing yet: the hub animates the deal AND the
+            // opening AI turns when the creator's client connects (DriveAiAsync), so the
+            // whole of round 1 — including an action card dealt onto the human — plays out
+            // live instead of being resolved before anyone is watching.
+            var round = BeginRound(session);
+            session.RoundStateJson = Serialize(round.Capture());
             _db.GameSessions.Add(session);
             await _db.SaveChangesAsync(ct);
-            return Map(session, round, events);
+            return Map(session, round); // un-dealt board; the hub deals it on connect
         }
 
         // Online: stay in the lobby until the creator starts.
@@ -160,9 +161,8 @@ public class Flip7GameService : IFlip7GameService
             throw new InvalidOperationException("Need at least two players to start.");
 
         session.Status = Flip7GameStatus.InProgress;
-        var events = new List<Flip7Event>();
-        var round = StartRound(session, events);
-        return await ResolveAndEmitAsync(session, round, events, onUpdate, ct);
+        var round = BeginRound(session);
+        return await DealAndEmitAsync(session, round, onUpdate, ct);
     }
 
     public Task<Flip7GameStateDto> HitAsync(Guid gameId, Guid userId, AiStepCallback? onUpdate = null, CancellationToken ct = default) =>
@@ -206,9 +206,8 @@ public class Flip7GameService : IFlip7GameService
             throw new InvalidOperationException("The current round is still in progress.");
 
         session.DealerSeat = Flip7GameRules.NextDealerSeat(session.DealerSeat, session.Players.Count);
-        var events = new List<Flip7Event>();
-        var round = StartRound(session, events);
-        return await ResolveAndEmitAsync(session, round, events, onUpdate, ct);
+        var round = BeginRound(session);
+        return await DealAndEmitAsync(session, round, onUpdate, ct);
     }
 
     public async Task<Flip7GameStateDto?> GetStateAsync(Guid gameId, Guid userId, CancellationToken ct = default)
@@ -248,16 +247,34 @@ public class Flip7GameService : IFlip7GameService
 
     // ---- Round lifecycle ------------------------------------------------
 
-    private Flip7Round StartRound(Flip7GameSession session, List<Flip7Event> events)
+    /// <summary>Builds the next round (turn order + fresh deck) without dealing it.</summary>
+    private Flip7Round NewRound(Flip7GameSession session)
     {
         var bySeat = session.Players.OrderBy(p => p.Seat).Select(p => p.Id).ToList();
         var turnOrder = Flip7GameRules.TurnOrderFromDealer(bySeat, session.DealerSeat);
         var deck = _shuffler.CreateShuffledDeck();
-
-        var round = new Flip7Round(turnOrder, deck);
         session.RoundNumber += 1;
+        return new Flip7Round(turnOrder, deck);
+    }
+
+    /// <summary>Solo / atomic path: deal the whole round now (no streaming to animate it).</summary>
+    private Flip7Round StartRound(Flip7GameSession session, List<Flip7Event> events)
+    {
+        var round = NewRound(session);
         // AI draws on the deal auto-target; a human drawing an action pauses for a pick.
         events.AddRange(round.DealInitial(ChooserFor(session, round)));
+        return round;
+    }
+
+    /// <summary>
+    /// Streamed path: set up the round and begin its deal without handing out cards.
+    /// The drive loop then animates the deal one seat per beat, so the whole table
+    /// watches the round be dealt (including any action card dealt onto a player).
+    /// </summary>
+    private Flip7Round BeginRound(Flip7GameSession session)
+    {
+        var round = NewRound(session);
+        round.BeginDeal();
         return round;
     }
 
@@ -276,10 +293,11 @@ public class Flip7GameService : IFlip7GameService
     }
 
     /// <summary>
-    /// If it is currently an AI's turn (round in progress, nothing pending), plays
-    /// the AI turns out and emits each beat via <paramref name="onUpdate"/>; a no-op
-    /// otherwise. The hub calls this when a client connects so a vs-AI game's opening
-    /// AI turns are animated live rather than resolved before anyone is watching.
+    /// Animates whatever the round owes that no human input gates — the remaining
+    /// initial-deal seats, then any opening AI turns — emitting each beat via
+    /// <paramref name="onUpdate"/>; a no-op once it is a human's turn or nothing is
+    /// pending. The hub calls this when a client connects so a vs-AI game's deal and
+    /// opening AI turns play out live rather than being resolved before anyone watches.
     /// </summary>
     public async Task DriveAiAsync(Guid gameId, AiStepCallback onUpdate, CancellationToken ct = default)
     {
@@ -288,16 +306,37 @@ public class Flip7GameService : IFlip7GameService
 
         var round = RestoreRound(session);
         if (round is null || round.RoundEnded || round.PendingAction is not null) return;
-        if (round.CurrentPlayerId is not Guid current) return;
-        if (!session.Players.First(p => p.Id == current).IsAi) return;
+
+        // Drive if the deal still needs animating, or an AI is on turn. (A human already
+        // on turn with the deal finished leaves nothing to do.)
+        bool aiOnTurn = round.CurrentPlayerId is Guid current
+            && session.Players.First(p => p.Id == current).IsAi;
+        if (!round.Dealing && !aiOnTurn) return;
 
         var events = new List<Flip7Event>();
-        await DriveAiTurnsAsync(session, round, ChooserFor(session, round), events, onUpdate, ct);
+        await DriveAsync(session, round, ChooserFor(session, round), events, onUpdate, ct);
         await PersistAsync(session, round, ct);
     }
 
     /// <summary>
-    /// Settles a base action (a human turn or a fresh deal) and the AI turns that
+    /// Drives a freshly begun round: animates the initial deal one seat per beat,
+    /// then the opening AI turns. With <paramref name="onUpdate"/> (the live hub
+    /// path) each beat is persisted and pushed individually so the whole table
+    /// watches the deal and AI act in real time; otherwise everything resolves in
+    /// one shot and is saved once (REST/tests). The deal can suspend on a human's
+    /// dealt-action target choice, leaving the picker up for them.
+    /// </summary>
+    private async Task<Flip7GameStateDto> DealAndEmitAsync(
+        Flip7GameSession session, Flip7Round round, AiStepCallback? onUpdate, CancellationToken ct)
+    {
+        var events = new List<Flip7Event>();
+        await DriveAsync(session, round, ChooserFor(session, round), events, onUpdate, ct);
+        await PersistAsync(session, round, ct);
+        return Map(session, round, events);
+    }
+
+    /// <summary>
+    /// Settles a base action (a human turn or target choice) and the AI turns that
     /// follow it. When <paramref name="onUpdate"/> is supplied (the live hub path)
     /// each beat — the base action, then every AI turn — is persisted and pushed
     /// individually so all players watch the AI act in real time. Otherwise
@@ -316,10 +355,41 @@ public class Flip7GameService : IFlip7GameService
             await onUpdate(Map(session, round, events)); // base beat, shown immediately
         }
 
-        await DriveAiTurnsAsync(session, round, ChooserFor(session, round), events, onUpdate, ct);
+        await DriveAsync(session, round, ChooserFor(session, round), events, onUpdate, ct);
 
         await PersistAsync(session, round, ct);
         return Map(session, round, events);
+    }
+
+    /// <summary>
+    /// Advances the round through work no human input gates: first any remaining
+    /// initial-deal seats (one beat each), then consecutive AI turns. Stops at a
+    /// human's turn, a pending target choice, or round end. With
+    /// <paramref name="onUpdate"/> set, each seat dealt and each AI turn is persisted
+    /// and emitted as its own beat (the hub paces them); otherwise it resolves in one
+    /// shot for the caller to persist.
+    /// </summary>
+    private async Task DriveAsync(Flip7GameSession session, Flip7Round round, TargetChooser chooser,
+        List<Flip7Event> events, AiStepCallback? onUpdate, CancellationToken ct)
+    {
+        // 1. Deal, one seat per beat.
+        while (round.Dealing && round.PendingAction is null && !round.RoundEnded)
+        {
+            var beat = round.DealNext(chooser).ToList();
+            events.AddRange(beat);
+            if (round.RoundEnded)
+                BankRound(session, round); // a deal action (e.g. a Freeze) ended the round
+
+            if (onUpdate is not null)
+            {
+                await PersistAsync(session, round, ct);
+                if (beat.Count > 0)
+                    await onUpdate(Map(session, round, beat)); // this dealt seat, on its own
+            }
+        }
+
+        // 2. The AI turns that follow.
+        await DriveAiTurnsAsync(session, round, chooser, events, onUpdate, ct);
     }
 
     /// <summary>
